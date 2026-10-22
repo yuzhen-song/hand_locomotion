@@ -257,3 +257,42 @@ MUJOCO_GL=osmesa python 07_tools/render_schematic.py --gl --views \
 ```
 
 Output: `05_videos/classic_gait_4views.{mp4,gif}`.
+
+### It walks (open loop) with two changes: friction 5 and a slow high-duty gait
+
+Earlier the crawl gait produced no net motion (fingertips slip, the symmetric
+sweep cancels out). Two changes fix it:
+
+1. fingertip sliding friction **2.0 -> 5.0**
+2. a **slow, high-duty** cycle: period **2.6 s**, duty **0.85**, stride **0.35 rad**, knee flex 0
+
+With that, the pure open-loop reference walks **forward and stays up**:
+
+| time | forward Y | body height |
+|---|---|---|
+| 3 s | +0.020 m | 0.116 m |
+| 6 s | +0.037 m | 0.124 m |
+| 12 s | +0.091 m | 0.123 m |
+| 18 s | +0.139 m | 0.124 m |
+| 24 s | +0.183 m | 0.125 m |
+| 30 s | **+0.222 m** | 0.122 m |
+
+Roughly 0.75 cm/s, steady, no falls. Slow, but it is real open-loop walking -
+the hip sweep now grips during stance instead of sliding.
+
+Search notes (2400 steps = 4.8 s per trial, fingertip friction in brackets):
+
+- friction 2.0, any crawl setting: all <= 0 (best -0.09 m)
+- friction 4.0: first positive results (best +0.028 m at T=1.6, duty=0.85)
+- friction 5.0: 30 of 72 settings positive, best **+0.041 m** at T=2.6, duty=0.85, stride=0.35
+- friction 6.0+ or duty=1.0: no better
+
+Record it:
+
+```bash
+MUJOCO_GL=osmesa python 07_tools/render_schematic.py --gl --views --gait crawl \
+    --friction 5.0 --period 2.6 --duty 0.85 --stride 0.35 --knee 0.0 \
+    --steps 5000 --every 80 --out 05_videos/classic_walk_4views.mp4
+```
+
+Output: `05_videos/classic_walk_4views.{mp4,gif}`.

@@ -190,6 +190,10 @@ def main():
     ap.add_argument("--out", default=None)
     ap.add_argument("--gl", action="store_true", help="MuJoCo 3D rendering instead of the schematic")
     ap.add_argument("--views", action="store_true", help="2x2 multi-camera grid (needs --gl)")
+    ap.add_argument("--period", type=float, default=1.2, help="gait cycle in seconds")
+    ap.add_argument("--duty", type=float, default=0.75, help="stance fraction per leg")
+    ap.add_argument("--stride", type=float, default=0.45, help="hip sweep amplitude in rad")
+    ap.add_argument("--knee", type=float, default=0.22, help="swing knee flex in rad")
     ap.add_argument("--friction", type=float, default=None,
                     help="override the fingertip sliding friction (model default 2.0)")
     a = ap.parse_args()
@@ -204,7 +208,7 @@ def main():
     abd = {"C": 0.63, "A": -0.63, "B": 0.63, "D": -0.63}
     q0 = np.array([{"MCP-FLX": -1.10, "MCP-ABD": abd[n.split("-")[0].replace("unit", "")],
                     "PIP": 1.60, "DIP": -0.35}[n.split("-", 1)[1]] for n in order])
-    GAIT = CrawlGait(order, q0, period=1.2, duty=0.75, stride=0.45, knee=0.22)
+    GAIT = CrawlGait(order, q0, period=a.period, duty=a.duty, stride=a.stride, knee=a.knee)
 
     def pd(target):
         u = np.zeros(m.nu)
