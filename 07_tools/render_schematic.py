@@ -124,6 +124,7 @@ def main():
     ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--scale", type=float, default=700.0)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--gl", action="store_true", help="use MuJoCo OpenGL rendering instead of the skeleton")
     a = ap.parse_args()
 
     paths.ensure_dirs()
@@ -156,6 +157,9 @@ def main():
 
     pairs = skeleton(m)
     limbs = body_leg_map(m)
+    gl_renderer = None
+    if a.gl:
+        gl_renderer = mujoco.Renderer(m, height=480, width=640)
     H, W = 300, 520
     out = a.out or os.path.join(paths.VIDEO_DIR, "gait_crawl_schematic.mp4")
     y0 = float(d.qpos[1])
@@ -172,7 +176,17 @@ def main():
             if R[2, 0] < 0.7 or d.qpos[2] < 0.05:
                 fell = step
             if step % a.every == 0:
-                writer.append_data(render_frame(m, d, pairs, a.scale, H, W, limbs))
+                if gl_renderer is None:
+                    writer.append_data(render_frame(m, d, pairs, a.scale, H, W, limbs))
+                else:
+                    cam = mujoco.MjvCamera()
+                    p = np.array(d.body("platform_mount").xpos)
+                    cam.lookat[:] = [float(p[0]), float(p[1]), float(p[2])]
+                    cam.distance = 0.6
+                    cam.elevation = -10
+                    cam.azimuth = 0
+                    gl_renderer.update_scene(d, camera=cam)
+                    writer.append_data(gl_renderer.render())
             if fell is not None:
                 for _ in range(a.fps):
                     writer.append_data(render_frame(m, d, pairs, a.scale, H, W, limbs))
