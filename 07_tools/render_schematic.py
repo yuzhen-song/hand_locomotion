@@ -95,7 +95,9 @@ def foot_geoms(m, limbs):
     return out
 
 
-def draw_schematic(m, d, chain, t, y0, feet=None, scale=1800.0, W=760, H=470):
+def draw_schematic(m, d, chain, t, y0, feet=None, scale=1950.0, W=780, H=500):
+    """Main panel is a TOP view (X-Y): this hand's four fingers sit in a 2x2
+    pattern, so they only separate in X-Y. A side view (Y-Z) goes bottom-right."""
     img = Image.new("RGB", (W, H), BG)
     dr = ImageDraw.Draw(img)
     f11 = ImageFont.truetype(FONT, 11)
@@ -104,46 +106,36 @@ def draw_schematic(m, d, chain, t, y0, feet=None, scale=1800.0, W=760, H=470):
     f20 = ImageFont.truetype(FONT_B, 20)
 
     body = np.array(d.body("platform_mount").xpos)
-    ground = 370
-    cx = 340
-    # The collision proxy under each fingertip is a ball, so its centre sits a
-    # few cm above the floor. Draw the contact line through that centre so the
-    # feet look planted; the readout keeps the real numbers.
-    zc = 0.0
-    if feet:
-        centres = [np.mean([d.geom_xpos[g] for g in ids], axis=0) for ids in feet.values() if ids]
-        if centres:
-            zc = float(np.mean([c[2] for c in centres]))
+    cx, cy = 470, 250          # pixel position of the body in the top view
 
-    def to_px(y, z):
-        return (cx + (y - body[1]) * scale, ground - (z - zc) * scale)
+    def to_px(y, x):
+        return (cx + (y - body[1]) * scale, cy - (x - body[0]) * scale)
 
-    # world ruler: ticks every 2 cm, labels every 10 cm, in ground-fixed coords
+    # travel ruler along Y, ground fixed
+    base = 420
+    dr.line([(40, base), (W - 40, base)], fill=GROUND, width=2)
     for k in range(-60, 61):
         wy = round(body[1] / 0.02) * 0.02 + k * 0.02
-        px = cx + (wy - body[1]) * scale
-        if not (30 < px < W - 30):
+        px = to_px(wy, 0.0)[0]
+        if not (40 < px < W - 40):
             continue
         major = abs(round(wy * 100) % 10) < 1e-6
-        dr.line([(px, ground), (px, ground + (10 if major else 5))], fill=GROUND if major else GRID, width=1)
+        dr.line([(px, base), (px, base - (9 if major else 5))], fill=GROUND if major else GRID, width=1)
         if major:
-            dr.text((px - 10, ground + 13), f"{wy*100:+.0f}", font=f11, fill=DIM)
+            dr.text((px - 11, base + 4), f"{wy*100:+.0f}", font=f11, fill=DIM)
+    dr.text((44, base + 18), "travel axis +Y (cm, ground-fixed)", font=f11, fill=DIM)
 
-    dr.line([(30, ground), (W - 260, ground)], fill=GROUND, width=2)
-    dr.text((30, ground + 6), "contact line (tip proxy bottom)", font=f11, fill=DIM)
-    dr.text((W - 250, ground + 6), "ruler in cm, ground-fixed", font=f11, fill=DIM)
-
-    # fingers: bright = swing, dim = stance
     swing = None
-    for leg, ids in chain.items():
-        if t is not None and GAIT is not None and GAIT.is_swinging(leg, t):
+    for leg in "ABCD":
+        if GAIT is not None and GAIT.is_swinging(leg, t):
             swing = leg
+    for leg, ids in chain.items():
         live = (leg == swing)
         col = LEG_COLOR[leg] if live else dim(LEG_COLOR[leg])
-        pts = [to_px(float(d.body(b).xpos[1]), float(d.body(b).xpos[2])) for b in ids]
+        pts = [to_px(float(d.body(b).xpos[1]), float(d.body(b).xpos[0])) for b in ids]
         if feet and feet.get(leg):
-            contact = np.mean([d.geom_xpos[g] for g in feet[leg]], axis=0)
-            pts.append(to_px(float(contact[1]), float(contact[2])))
+            c = np.mean([d.geom_xpos[g] for g in feet[leg]], axis=0)
+            pts.append(to_px(float(c[1]), float(c[0])))
         dr.line(pts, fill=col, width=5 if live else 3, joint="curve")
         for p in pts[:-1]:
             dr.ellipse([p[0] - 3, p[1] - 3, p[0] + 3, p[1] + 3], fill=col)
@@ -151,33 +143,36 @@ def draw_schematic(m, d, chain, t, y0, feet=None, scale=1800.0, W=760, H=470):
         dr.ellipse([x - 7, y - 7, x + 7, y + 7], fill=col)
         dr.text((x + 11, y - 9), leg, font=f16, fill=col)
 
-    # HUD
-    dr.text((24, 20), "classic crawl gait  (open loop, PD tracking)", font=f20, fill=TEXT)
-    dr.text((24, 50), f"t = {t:5.2f} s", font=f16, fill=TEXT)
+    dr.text((20, 16), "classic crawl gait  (open loop)", font=f20, fill=TEXT)
     dy = (float(body[1]) - y0) * 100
-    dr.text((24, 74), f"forward Y = {dy:+6.1f} cm", font=f16,
+    dr.text((20, 44), f"t = {t:5.2f} s", font=f16, fill=TEXT)
+    dr.text((20, 68), f"forward Y = {dy:+6.1f} cm", font=f16,
             fill=(120, 240, 150) if dy > 0 else (255, 140, 140))
-    dr.text((24, 98), f"body height = {float(body[2])*100:5.1f} cm", font=f13, fill=DIM)
-    dr.text((24, 118), f"swing leg   = {swing or '-'}", font=f16,
+    dr.text((20, 92), f"swing leg  = {swing or '-'}", font=f16,
             fill=LEG_COLOR.get(swing, TEXT) if swing else TEXT)
-    dr.text((24, 148), "bright = swing leg,  dim = stance legs", font=f11, fill=DIM)
-    dr.text((24, 168), f"pixel scale {scale:.0f} px/m", font=f11, fill=DIM)
+    dr.text((20, 120), "main = TOP view (X-Y), bright = swing", font=f11, fill=DIM)
 
-    # top view inset
-    ox, oy, s = W - 190, 12, 700.0
-    dr.rectangle([ox, oy, ox + 172, oy + 140], outline=GRID, width=1)
-    dr.text((ox + 8, oy + 6), "top view (X-Y)", font=f11, fill=DIM)
-    bcx, bcy = ox + 86, oy + 82
+    # side view inset (Y-Z): shows body height and how little the tips lift
+    ox, oy, w2, h2 = W - 250, H - 170, 230, 150
+    dr.rectangle([ox, oy, ox + w2, oy + h2], outline=GRID, width=1)
+    dr.text((ox + 6, oy + 4), "side view (Y-Z)", font=f11, fill=DIM)
+    zc = 0.0
+    if feet:
+        cs = [np.mean([d.geom_xpos[g] for g in ids], axis=0) for ids in feet.values() if ids]
+        if cs:
+            zc = float(np.mean([c[2] for c in cs]))
+    s2 = 700.0
+    g2 = oy + h2 - 26
+    dr.line([(ox + 6, g2), (ox + w2 - 6, g2)], fill=GROUND, width=1)
     for leg, ids in chain.items():
         live = (leg == swing)
         col = LEG_COLOR[leg] if live else dim(LEG_COLOR[leg])
-        p = np.array(d.body(ids[-1]).xpos)
-        px = bcx + (p[0] - body[0]) * s * 0.35
-        py = bcy - (p[1] - body[1]) * s * 0.35
-        dr.ellipse([px - 6, py - 6, px + 6, py + 6], fill=col)
-        dr.text((px + 8, py - 7), leg, font=f11, fill=col)
-    dr.line([(bcx - 7, bcy), (bcx + 7, bcy)], fill=TEXT, width=1)
-    dr.line([(bcx, bcy - 7), (bcx, bcy + 7)], fill=TEXT, width=1)
+        pts = [(ox + w2 / 2 + (float(d.body(b).xpos[1]) - body[1]) * s2,
+                g2 - (float(d.body(b).xpos[2]) - zc) * s2) for b in ids]
+        if feet and feet.get(leg):
+            c = np.mean([d.geom_xpos[g] for g in feet[leg]], axis=0)
+            pts.append((ox + w2 / 2 + (float(c[1]) - body[1]) * s2, g2 - (float(c[2]) - zc) * s2))
+        dr.line(pts, fill=col, width=2, joint="curve")
 
     return img
 

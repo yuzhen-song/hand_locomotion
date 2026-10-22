@@ -210,3 +210,26 @@ the GPU is unavailable. It draws:
 
 Output: `05_videos/classic_gait_schematic.gif` (GIF, so it renders inline on
 GitHub). Add `--gl` on a machine with a GPU for real MuJoCo 3D rendering.
+
+### Residual RL environment
+
+`01_env/train_quad_residual.py` wraps the crawl reference:
+
+```
+q_target = q_ref(phase) + residual * 0.35 rad
+torque   = PD(q_target)          # same safety filter and force limits as creep
+obs      = qpos + qvel + sin/cos(phase of each leg)   -> 53 numbers
+reward   = creep reward minus the hand-made crawl clock
+           minus 0.5 * |q - q_ref|  minus 0.2 * |residual|
+```
+
+The point: the reference supplies the rhythm and the leg ordering, the policy
+only has to learn the asymmetric loading that produces thrust (which the hand
+cannot do open loop, see above).
+
+Train it with the existing loop, just pass the name:
+
+```bash
+python 02_train/train_until_walk_creep.py residual     # -> 04_checkpoints/residual_*.zip
+python 07_tools/rollout_measure.py residual --kind best
+```
