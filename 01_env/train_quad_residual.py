@@ -33,7 +33,7 @@ from train_quad_creep import (  # noqa: E402
 )
 
 RESIDUAL_SCALE = 0.35     # max joint correction in rad
-GAIT_PERIOD = 1.2         # crawl cycle in seconds
+GAIT_PERIOD = 2.6         # crawl cycle in seconds (the walking configuration)
 W_TRACK = 0.5             # pull toward the open-loop reference
 W_RES = 0.20              # keep the residual small
 LEGS = ("A", "B", "C", "D")
@@ -42,8 +42,7 @@ LEGS = ("A", "B", "C", "D")
 class QuadWalkResidual(QuadWalk):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.gait = CrawlGait(self.order, self.q0, period=GAIT_PERIOD,
-                              duty=0.75, stride=0.45, knee=0.22)
+        self.gait = CrawlGait(self.order, self.q0, period=GAIT_PERIOD)
         self.w_creep = 0.0                        # the phase now comes from the gait clock
         n = self.model.nq + self.model.nv + 8
         self.observation_space = spaces.Box(-np.inf, np.inf, shape=(n,), dtype=np.float32)

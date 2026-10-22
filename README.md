@@ -296,3 +296,21 @@ MUJOCO_GL=osmesa python 07_tools/render_schematic.py --gl --views --gait crawl \
 ```
 
 Output: `05_videos/classic_walk_4views.{mp4,gif}`.
+
+### Defaults changed (friction 5 is now baked into the model)
+
+`03_model/quadruped_sim.xml` now uses fingertip friction **5.0** (was 2.0), and
+the walking configuration **period 2.6 s / duty 0.85 / stride 0.35 / knee 0** is
+the default of `gait.CrawlGait`. Every consumer follows automatically:
+
+- the residual env (`train_quad_residual.py`) uses it as its reference
+- `render_schematic.py` uses it for the multi-view recording
+- `rollout_measure.py` / `rec_video.py` see the new physics
+
+Sanity check after the change: the pure open-loop reference covers **+0.07 m in
+12 s** with no policy, and the residual env's mean reward is already **positive
+(+0.075)** with random actions, i.e. the reference itself is earning progress.
+
+Note: checkpoints in `04_checkpoints/` were trained under friction 2.0, so their
+measured distance shifts slightly with the new model. Retrain from scratch (or
+fine-tune) for comparable numbers.

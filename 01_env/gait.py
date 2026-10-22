@@ -13,7 +13,9 @@ Measured properties of this hand (all numbers from the real model):
   * MCP-ABD is lateral only (0.02 m/rad in X); the reference holds the splay
     that the stance q0 already uses.
 
-Gait: one leg swings at a time (duty 0.75), swing order A -> D -> B -> C.
+Gait: one leg swings at a time, swing order A -> D -> B -> C. The defaults
+(period 2.6 s, duty 0.85, stride 0.35 rad, no knee flex) are the configuration
+that makes the open-loop reference walk forward on this model - see README.
 Per leg the reference sweeps the hip from front to back during stance (the
 body is pushed forward over a planted foot) and from back to front during
 swing (the foot repositions ahead of the body).
@@ -36,7 +38,7 @@ def _smooth(x):
 class CrawlGait:
     """Produces a joint-space reference that is aligned with env.order."""
 
-    def __init__(self, order, q0, period=1.2, duty=0.75, stride=0.45, knee=0.22, sweep=1.0):
+    def __init__(self, order, q0, period=2.6, duty=0.85, stride=0.35, knee=0.0, sweep=1.0):
         self.order = list(order)
         self.q0 = np.asarray(q0, dtype=float).copy()
         self.period = float(period)
