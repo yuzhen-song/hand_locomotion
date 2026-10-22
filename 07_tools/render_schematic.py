@@ -1,11 +1,13 @@
-"""Schematic renderer: draws the mechanism skeleton without OpenGL.
+"""Render the classic gait so a human can actually read it.
 
-Useful on machines where the GPU is gone and mujoco.Renderer cannot get a GL
-context. Two panels: side view (Y-Z) and top view (X-Y), body follows the
-platform so the gait stays in frame.
+Two layouts:
+  * default: 2D schematic (no OpenGL) - side view with a world ruler, one
+    polyline per finger, the swing leg highlighted, plus a top-view inset.
+  * --gl: real MuJoCo 3D rendering (needs a working GPU/GL context).
 
 Usage:
-  python 07_tools/render_schematic.py --gait crawl --steps 2400 --out 05_videos/x.mp4
+  python 07_tools/render_schematic.py --gait crawl --steps 2400
+  python 07_tools/render_schematic.py --gait crawl --gl --out 05_videos/gl.mp4
 """
 import argparse
 import os
@@ -16,38 +18,56 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import paths  # noqa: E402
 
-import imageio.v2 as imageio  # noqa: E402
+import gc  # noqa: E402
+import subprocess  # noqa: E402
+import tempfile  # noqa: E402
+
+import imageio_ffmpeg  # noqa: E402
 import mujoco  # noqa: E402
+from PIL import Image, ImageDraw, ImageFont  # noqa: E402
+
 from gait import CrawlGait  # noqa: E402
 
-LEG_COLORS = {"A": (255, 90, 90), "B": (255, 170, 40), "C": (70, 190, 255), "D": (120, 255, 120)}
-GROUND_COLOR = (70, 70, 80)
-GRID_COLOR = (45, 45, 55)
-BODY_COLOR = (230, 230, 240)
+FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+FONT_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+LEG_COLOR = {"A": (255, 86, 86), "B": (255, 170, 40), "C": (80, 190, 255), "D": (120, 240, 120)}
+BG = (13, 13, 17)
+GROUND = (95, 95, 110)
+GRID = (36, 36, 44)
+TEXT = (225, 225, 235)
+DIM = (110, 110, 125)
 
 
-def skeleton(m):
-    """(child_body_id, parent_body_id) pairs, skipping the world."""
-    pairs = []
-    for b in range(1, m.nbody):
-        p = int(m.body_parentid[b])
-        pairs.append((b, p))
-    return pairs
+def dim(color, k=0.42):
+    return tuple(int(c * k) for c in color)
 
 
-def leg_of(name):
-    for leg in ("A", "B", "C", "D"):
-        if "unit" + leg in name:
-            return leg
-    return None
+def leg_paths(m, limbs):
+    """Proximal-to-distal body chain for each finger."""
+    names = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, b) or "" for b in range(m.nbody)]
+    out = {}
+    for leg in "ABCD":
+        tips = [b for b in range(m.nbody) if limbs.get(b) == leg and "finger_tip" in names[b]]
+        if not tips:
+            continue
+        chain, cur = [], tips[0]
+        while cur > 0 and limbs.get(cur) == leg:
+            chain.append(cur)
+            cur = int(m.body_parentid[cur])
+        out[leg] = chain[::-1]
+    return out
 
 
 def body_leg_map(m):
-    """Map every body to the leg that drives it (bodies carry no 'unit' prefix)."""
+    def leg_of(name):
+        for leg in "ABCD":
+            if "unit" + leg in name:
+                return leg
+        return None
+
     jnt_of_body = {}
     for j in range(m.njnt):
-        jn = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_JOINT, j) or ""
-        leg = leg_of(jn)
+        leg = leg_of(mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_JOINT, j) or "")
         if leg:
             jnt_of_body[int(m.jnt_bodyid[j])] = leg
     limbs = {}
@@ -62,69 +82,118 @@ def body_leg_map(m):
     return limbs
 
 
-def draw_line(img, x0, y0, x1, y1, color, w=1):
-    h, wd = img.shape[:2]
-    n = int(max(abs(x1 - x0), abs(y1 - y0))) + 1
-    xs = np.linspace(x0, x1, n).astype(int)
-    ys = np.linspace(y0, y1, n).astype(int)
-    for dx in range(-w, w + 1):
-        for dy in range(-w, w + 1):
-            xx = np.clip(xs + dx, 0, wd - 1)
-            yy = np.clip(ys + dy, 0, h - 1)
-            img[yy, xx] = color
+def foot_geoms(m, limbs):
+    """Collision geoms per finger: their centres are the real contact points."""
+    out = {leg: [] for leg in "ABCD"}
+    for g in range(m.ngeom):
+        name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g) or ""
+        if "tip_collision" not in name:
+            continue
+        leg = limbs.get(int(m.geom_bodyid[g]))
+        if leg:
+            out[leg].append(g)
+    return out
 
 
-def draw_dot(img, cx, cy, color, r=2):
-    h, wd = img.shape[:2]
-    for dx in range(-r, r + 1):
-        for dy in range(-r, r + 1):
-            if dx * dx + dy * dy <= r * r:
-                x, y = int(cx + dx), int(cy + dy)
-                if 0 <= x < wd and 0 <= y < h:
-                    img[y, x] = color
+def draw_schematic(m, d, chain, t, y0, feet=None, scale=1800.0, W=760, H=470):
+    img = Image.new("RGB", (W, H), BG)
+    dr = ImageDraw.Draw(img)
+    f11 = ImageFont.truetype(FONT, 11)
+    f13 = ImageFont.truetype(FONT, 13)
+    f16 = ImageFont.truetype(FONT_B, 16)
+    f20 = ImageFont.truetype(FONT_B, 20)
 
-
-def render_frame(m, d, pairs, scale, H, W, limbs):
-    """Side view on the left, top view on the right."""
-    img = np.zeros((H, W, 3), dtype=np.uint8)
-    img[:, :] = (18, 18, 22)
-    half = W // 2
     body = np.array(d.body("platform_mount").xpos)
+    ground = 370
+    cx = 340
+    # The collision proxy under each fingertip is a ball, so its centre sits a
+    # few cm above the floor. Draw the contact line through that centre so the
+    # feet look planted; the readout keeps the real numbers.
+    zc = 0.0
+    if feet:
+        centres = [np.mean([d.geom_xpos[g] for g in ids], axis=0) for ids in feet.values() if ids]
+        if centres:
+            zc = float(np.mean([c[2] for c in centres]))
 
-    for panel, (ax_h, ax_v) in enumerate(((1, 2), (1, 0))):
-        ox = panel * half
-        gy = int(H * 0.72)
-        # ground line and world grid
-        draw_line(img, ox, gy, ox + half - 1, gy, GROUND_COLOR, 1)
-        for k in range(-30, 31):
-            yw = round(body[1] * 10) / 10 + k * 0.05
-            px = int(ox + half / 2 + (yw - body[1]) * scale)
-            if ox < px < ox + half:
-                draw_line(img, px, gy, px, H - 1, GRID_COLOR, 0)
-        cx = ox + half / 2
-        for child, parent in pairs:
-            p0 = np.array(d.body(parent).xpos) if parent > 0 else np.zeros(3)
-            p1 = np.array(d.body(child).xpos)
-            leg = limbs.get(child) or limbs.get(parent)
-            color = LEG_COLORS.get(leg, BODY_COLOR)
-            x0 = cx + (p0[ax_h] - body[ax_h]) * scale
-            y0 = gy - p0[ax_v] * scale
-            x1 = cx + (p1[ax_h] - body[ax_h]) * scale
-            y1 = gy - p1[ax_v] * scale
-            draw_line(img, x0, y0, x1, y1, color, 1)
-            draw_dot(img, x1, y1, color, 2)
+    def to_px(y, z):
+        return (cx + (y - body[1]) * scale, ground - (z - zc) * scale)
+
+    # world ruler: ticks every 2 cm, labels every 10 cm, in ground-fixed coords
+    for k in range(-60, 61):
+        wy = round(body[1] / 0.02) * 0.02 + k * 0.02
+        px = cx + (wy - body[1]) * scale
+        if not (30 < px < W - 30):
+            continue
+        major = abs(round(wy * 100) % 10) < 1e-6
+        dr.line([(px, ground), (px, ground + (10 if major else 5))], fill=GROUND if major else GRID, width=1)
+        if major:
+            dr.text((px - 10, ground + 13), f"{wy*100:+.0f}", font=f11, fill=DIM)
+
+    dr.line([(30, ground), (W - 260, ground)], fill=GROUND, width=2)
+    dr.text((30, ground + 6), "contact line (tip proxy bottom)", font=f11, fill=DIM)
+    dr.text((W - 250, ground + 6), "ruler in cm, ground-fixed", font=f11, fill=DIM)
+
+    # fingers: bright = swing, dim = stance
+    swing = None
+    for leg, ids in chain.items():
+        if t is not None and GAIT is not None and GAIT.is_swinging(leg, t):
+            swing = leg
+        live = (leg == swing)
+        col = LEG_COLOR[leg] if live else dim(LEG_COLOR[leg])
+        pts = [to_px(float(d.body(b).xpos[1]), float(d.body(b).xpos[2])) for b in ids]
+        if feet and feet.get(leg):
+            contact = np.mean([d.geom_xpos[g] for g in feet[leg]], axis=0)
+            pts.append(to_px(float(contact[1]), float(contact[2])))
+        dr.line(pts, fill=col, width=5 if live else 3, joint="curve")
+        for p in pts[:-1]:
+            dr.ellipse([p[0] - 3, p[1] - 3, p[0] + 3, p[1] + 3], fill=col)
+        x, y = pts[-1]
+        dr.ellipse([x - 7, y - 7, x + 7, y + 7], fill=col)
+        dr.text((x + 11, y - 9), leg, font=f16, fill=col)
+
+    # HUD
+    dr.text((24, 20), "classic crawl gait  (open loop, PD tracking)", font=f20, fill=TEXT)
+    dr.text((24, 50), f"t = {t:5.2f} s", font=f16, fill=TEXT)
+    dy = (float(body[1]) - y0) * 100
+    dr.text((24, 74), f"forward Y = {dy:+6.1f} cm", font=f16,
+            fill=(120, 240, 150) if dy > 0 else (255, 140, 140))
+    dr.text((24, 98), f"body height = {float(body[2])*100:5.1f} cm", font=f13, fill=DIM)
+    dr.text((24, 118), f"swing leg   = {swing or '-'}", font=f16,
+            fill=LEG_COLOR.get(swing, TEXT) if swing else TEXT)
+    dr.text((24, 148), "bright = swing leg,  dim = stance legs", font=f11, fill=DIM)
+    dr.text((24, 168), f"pixel scale {scale:.0f} px/m", font=f11, fill=DIM)
+
+    # top view inset
+    ox, oy, s = W - 190, 12, 700.0
+    dr.rectangle([ox, oy, ox + 172, oy + 140], outline=GRID, width=1)
+    dr.text((ox + 8, oy + 6), "top view (X-Y)", font=f11, fill=DIM)
+    bcx, bcy = ox + 86, oy + 82
+    for leg, ids in chain.items():
+        live = (leg == swing)
+        col = LEG_COLOR[leg] if live else dim(LEG_COLOR[leg])
+        p = np.array(d.body(ids[-1]).xpos)
+        px = bcx + (p[0] - body[0]) * s * 0.35
+        py = bcy - (p[1] - body[1]) * s * 0.35
+        dr.ellipse([px - 6, py - 6, px + 6, py + 6], fill=col)
+        dr.text((px + 8, py - 7), leg, font=f11, fill=col)
+    dr.line([(bcx - 7, bcy), (bcx + 7, bcy)], fill=TEXT, width=1)
+    dr.line([(bcx, bcy - 7), (bcx, bcy + 7)], fill=TEXT, width=1)
+
     return img
 
 
+GAIT = None
+
+
 def main():
+    global GAIT
     ap = argparse.ArgumentParser()
     ap.add_argument("--gait", default="crawl", choices=["crawl", "hold"])
     ap.add_argument("--steps", type=int, default=2400)
     ap.add_argument("--every", type=int, default=16)
     ap.add_argument("--fps", type=int, default=30)
-    ap.add_argument("--scale", type=float, default=700.0)
     ap.add_argument("--out", default=None)
-    ap.add_argument("--gl", action="store_true", help="use MuJoCo OpenGL rendering instead of the skeleton")
+    ap.add_argument("--gl", action="store_true", help="MuJoCo 3D rendering instead of the schematic")
     a = ap.parse_args()
 
     paths.ensure_dirs()
@@ -137,7 +206,7 @@ def main():
     abd = {"C": 0.63, "A": -0.63, "B": 0.63, "D": -0.63}
     q0 = np.array([{"MCP-FLX": -1.10, "MCP-ABD": abd[n.split("-")[0].replace("unit", "")],
                     "PIP": 1.60, "DIP": -0.35}[n.split("-", 1)[1]] for n in order])
-    gait = CrawlGait(order, q0, period=1.2, duty=0.75, stride=0.45, knee=0.22)
+    GAIT = CrawlGait(order, q0, period=1.2, duty=0.75, stride=0.45, knee=0.22)
 
     def pd(target):
         u = np.zeros(m.nu)
@@ -155,29 +224,39 @@ def main():
         pd(q0)
         mujoco.mj_step(m, d)
 
-    pairs = skeleton(m)
     limbs = body_leg_map(m)
-    gl_renderer = None
-    if a.gl:
-        gl_renderer = mujoco.Renderer(m, height=480, width=640)
-    H, W = 300, 520
-    out = a.out or os.path.join(paths.VIDEO_DIR, "gait_crawl_schematic.mp4")
+    chain = leg_paths(m, limbs)
+    feet = foot_geoms(m, limbs)
+    gl = mujoco.Renderer(m, height=480, width=640) if a.gl else None
+    out = a.out or os.path.join(paths.VIDEO_DIR, f"gait_{a.gait}{'_gl' if a.gl else '_schematic'}.mp4")
     y0 = float(d.qpos[1])
-    t = 0.0
-    writer = imageio.get_writer(out, fps=a.fps, macro_block_size=None)
-    fell = None
+    t, fell = 0.0, None
+    tmp = tempfile.mkdtemp(prefix="gaitframes_")
+    nframe = [0]
+    is_gif = out.lower().endswith(".gif")
+    frames = []
+
+    def emit(frame):
+        if is_gif:
+            # 8-bit palette keeps an 80-frame animation under 30 MB of RAM
+            frames.append(frame.convert("P", palette=Image.ADAPTIVE, colors=96))
+        else:
+            frame.save(os.path.join(tmp, f"f{nframe[0]:05d}.png"))
+        nframe[0] += 1
+        if nframe[0] % 10 == 0:
+            gc.collect()
+
     try:
         for step in range(a.steps):
             t += m.opt.timestep
-            target = gait.reference(t) if a.gait == "crawl" else q0
-            pd(target)
+            pd(GAIT.reference(t) if a.gait == "crawl" else q0)
             mujoco.mj_step(m, d)
             R = np.array(d.body("platform_mount").xmat).reshape(3, 3)
             if R[2, 0] < 0.7 or d.qpos[2] < 0.05:
                 fell = step
             if step % a.every == 0:
-                if gl_renderer is None:
-                    writer.append_data(render_frame(m, d, pairs, a.scale, H, W, limbs))
+                if gl is None:
+                    emit(draw_schematic(m, d, chain, t, y0, feet))
                 else:
                     cam = mujoco.MjvCamera()
                     p = np.array(d.body("platform_mount").xpos)
@@ -185,16 +264,32 @@ def main():
                     cam.distance = 0.6
                     cam.elevation = -10
                     cam.azimuth = 0
-                    gl_renderer.update_scene(d, camera=cam)
-                    writer.append_data(gl_renderer.render())
+                    gl.update_scene(d, camera=cam)
+                    emit(Image.fromarray(gl.render()))
             if fell is not None:
                 for _ in range(a.fps):
-                    writer.append_data(render_frame(m, d, pairs, a.scale, H, W, limbs))
+                    if gl is None:
+                        emit(draw_schematic(m, d, chain, t, y0, feet))
                 break
     finally:
-        writer.close()
-    dx = float(d.qpos[1]) - y0
-    print(f"saved {out} steps={a.steps if fell is None else fell} dx={dx:+.3f}m fell={fell}")
+        # free the MuJoCo model before shelling out to ffmpeg: on a 2 GB
+        # container the encoder would otherwise push the process over the limit
+        gl = None
+        del m, d
+        gc.collect()
+        if is_gif:
+            frames[0].save(out, save_all=True, append_images=frames[1:],
+                           duration=max(20, 1000 // a.fps), loop=0, optimize=True)
+            print(f"saved {out} frames={len(frames)}")
+            return
+        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-framerate", str(a.fps),
+                        "-i", os.path.join(tmp, "f%05d.png"), "-c:v", "libx264",
+                        "-pix_fmt", "yuv420p", out], check=True)
+        for f in os.listdir(tmp):
+            os.remove(os.path.join(tmp, f))
+        os.rmdir(tmp)
+    print(f"saved {out} steps={a.steps if fell is None else fell} dx={float(d.qpos[1])-y0:+.3f}m fell={fell}")
 
 
 if __name__ == "__main__":

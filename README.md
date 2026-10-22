@@ -196,5 +196,17 @@ motion.
 Therefore the classic gait cannot act as the controller for this hand; it can
 only serve as a **rhythm/phase prior** for residual RL (phase in the
 observation, residual torque or residual angle on top of the reference).
-`07_tools/render_schematic.py` renders the skeleton without OpenGL, for machines
-where the GPU is unavailable.
+`07_tools/render_schematic.py` renders the gait without OpenGL, for machines where
+the GPU is unavailable. It draws:
+
+* **side view** (Y horizontal, Z vertical), one polyline per finger through its
+  four bodies plus the fingertip collision proxy, ending on the contact line
+* the **swing leg in full colour**, stance legs dimmed, so the A -> D -> B -> C
+  order is visible at a glance
+* a **ground-fixed ruler** in cm that scrolls as the body moves, which makes the
+  (absent) forward motion obvious
+* a HUD with time, forward displacement, body height and the active swing leg
+* a **top-view inset** with the four fingertips in world X-Y
+
+Output: `05_videos/classic_gait_schematic.gif` (GIF, so it renders inline on
+GitHub). Add `--gl` on a machine with a GPU for real MuJoCo 3D rendering.
