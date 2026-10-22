@@ -1,0 +1,13 @@
+{
+    "configuration": "default",
+    "documentId": "d7b11ed8ed9ca004e6bd6f61",
+    "documentMicroversion": "302dd7e04b51fc6742568a2c",
+    "elementId": "41be7535f6e8772f4fb8966c",
+    "fullConfiguration": "default",
+    "id": "Mb3UozjBgDnd7cgF3",
+    "isStandardContent": false,
+    "name": "Motor_DC15_A01_IDLE_CAP_DUMMY <1>",
+    "partId": "JFP",
+    "suppressed": false,
+    "type": "Part"
+}

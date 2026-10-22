@@ -1,0 +1,19 @@
+{
+    // Onshape URL of the ASSEMBLY you want to export.
+    // Make sure you are on the assembly tab when you copy the URL from the browser.
+    "url": "https://cad.onshape.com/documents/d7b11ed8ed9ca004e6bd6f61/w/e38d7d0d7f8fb2a50e119150/e/5257665bbc6f8fef9fe3613a",
+
+    // Output format: "urdf", "sdf" or "mujoco".
+    // Keep "urdf" to produce a URDF you can load in MuJoCo.
+    "output_format": "urdf",
+
+    // Name used for the generated robot/output file (produces robot.urdf by default).
+    "robot_name": "robot",
+
+    // --- Optional settings (uncomment as needed) -------------------------
+    // "assembly_name": "my_assembly",   // pick a specific assembly if the tab has several
+    // "draw_frames": false,             // draw the reference frames in the output
+    // "ignore_limits": false,           // ignore joint limits defined in Onshape
+    "no_dynamics": true,                 // parts have no material/mass in Onshape; skip dynamics
+    // "configuration": "default"        // Onshape configuration to export
+}
