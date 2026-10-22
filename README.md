@@ -314,3 +314,27 @@ Sanity check after the change: the pure open-loop reference covers **+0.07 m in
 Note: checkpoints in `04_checkpoints/` were trained under friction 2.0, so their
 measured distance shifts slightly with the new model. Retrain from scratch (or
 fine-tune) for comparable numbers.
+
+### Status: residual RL (400k steps) is worse than the open-loop reference
+
+Measured over 10 s, deterministic rollout:
+
+| controller | forward Y | sideways X | final yaw | max |yaw| |
+|---|---|---|---|---|
+| open-loop reference | **+0.065 m** | +0.003 m | +34 deg | 180 deg |
+| residual PPO, 400k steps | -0.024 m | -0.005 m | +83 deg | 140 deg |
+
+The policy did not beat the reference: the reward is still dominated by
+accumulated penalties (lateral drift and yaw are integrated over a 5000-step
+episode), so PPO finds degenerate behaviours instead of speed. The reference
+stays the best controller so far.
+
+Heading is the open problem: the 2x2 finger layout produces a systematic yaw
+moment, and the hand turns up to 180 deg on its own. A classical differential
+stride controller (`gait.yaw_scale`) only reaches ~100 deg and costs forward
+speed, and a common MCP-ABD offset has no measurable lateral effect, so neither
+fixes it.
+
+Long recording of the reference gait (30 s, four cameras):
+
+`05_videos/classic_walk_long_4views.{mp4,gif}`
