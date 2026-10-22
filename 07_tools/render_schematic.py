@@ -189,6 +189,9 @@ def main():
     ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--out", default=None)
     ap.add_argument("--gl", action="store_true", help="MuJoCo 3D rendering instead of the schematic")
+    ap.add_argument("--views", action="store_true", help="2x2 multi-camera grid (needs --gl)")
+    ap.add_argument("--friction", type=float, default=None,
+                    help="override the fingertip sliding friction (model default 2.0)")
     a = ap.parse_args()
 
     paths.ensure_dirs()
@@ -222,7 +225,56 @@ def main():
     limbs = body_leg_map(m)
     chain = leg_paths(m, limbs)
     feet = foot_geoms(m, limbs)
-    gl = mujoco.Renderer(m, height=480, width=640) if a.gl else None
+    if a.friction is not None:
+        for ids in feet.values():
+            for g in ids:
+                m.geom_friction[g, 0] = a.friction
+                m.geom_friction[g, 1] = a.friction
+        print(f"friction -> {a.friction}", flush=True)
+    gl = mujoco.Renderer(m, height=200, width=264) if a.gl else None
+    if gl is not None:
+        # software rendering: shadows dominate the cost, they are not worth it here
+        gl.scene.flags[mujoco.mjtRndFlag.mjRND_SHADOW] = False
+        gl.scene.flags[mujoco.mjtRndFlag.mjRND_REFLECTION] = False
+
+    def single_view():
+        cam = mujoco.MjvCamera()
+        p = np.array(d.body("platform_mount").xpos)
+        cam.lookat[:] = [float(p[0]), float(p[1]), float(p[2])]
+        cam.distance = 0.6
+        cam.elevation = -10
+        cam.azimuth = 0
+        gl.update_scene(d, camera=cam)
+        return Image.fromarray(gl.render())
+
+    def grab_views():
+        """Four cameras tiled 2x2: side follow, 3/4 front, top, feet close-up."""
+        p = np.array(d.body("platform_mount").xpos)
+        specs = ((0, -8, 0.55, 0.0, "SIDE (follow)"),
+                 (130, -25, 0.60, 0.0, "3/4 FRONT"),
+                 (0, -78, 0.45, 0.0, "TOP"),
+                 (40, -14, 0.30, -0.09, "FEET CLOSE-UP"))
+        tile = Image.new("RGB", (528, 400), BG)
+        dr = ImageDraw.Draw(tile)
+        fnt = ImageFont.truetype(FONT, 13)
+        for i, (az, el, dist, dz, label) in enumerate(specs):
+            cam = mujoco.MjvCamera()
+            cam.lookat[:] = [float(p[0]), float(p[1]), float(p[2]) + dz]
+            cam.distance = dist
+            cam.elevation = el
+            cam.azimuth = az
+            gl.update_scene(d, camera=cam)
+            im = Image.fromarray(gl.render())
+            x, y = (i % 2) * 264, (i // 2) * 200
+            tile.paste(im, (x, y))
+            dr.rectangle([x, y, x + 262, y + 198], outline=(70, 70, 85))
+            dr.rectangle([x, y, x + len(label) * 8 + 10, y + 20], fill=(0, 0, 0))
+            dr.text((x + 5, y + 4), label, font=fnt, fill=TEXT)
+        dy = (float(d.body("platform_mount").xpos[1]) - y0) * 100
+        dr.rectangle([4, 372, 250, 396], fill=(0, 0, 0))
+        dr.text((8, 375), f"t={t:5.2f}s   Y={dy:+6.1f}cm   fric={a.friction or 2.0}",
+                font=fnt, fill=TEXT)
+        return tile
     out = a.out or os.path.join(paths.VIDEO_DIR, f"gait_{a.gait}{'_gl' if a.gl else '_schematic'}.mp4")
     y0 = float(d.qpos[1])
     t, fell = 0.0, None
@@ -253,14 +305,7 @@ def main():
                 if gl is None:
                     emit(draw_schematic(m, d, chain, t, y0, feet))
                 else:
-                    cam = mujoco.MjvCamera()
-                    p = np.array(d.body("platform_mount").xpos)
-                    cam.lookat[:] = [float(p[0]), float(p[1]), float(p[2])]
-                    cam.distance = 0.6
-                    cam.elevation = -10
-                    cam.azimuth = 0
-                    gl.update_scene(d, camera=cam)
-                    emit(Image.fromarray(gl.render()))
+                    emit(grab_views() if a.views else single_view())
             if fell is not None:
                 for _ in range(a.fps):
                     if gl is None:
@@ -284,7 +329,7 @@ def main():
         for f in os.listdir(tmp):
             os.remove(os.path.join(tmp, f))
         os.rmdir(tmp)
-    print(f"saved {out} steps={a.steps if fell is None else fell} dx={float(d.qpos[1])-y0:+.3f}m fell={fell}")
+    print(f"saved {out} frames={nframe[0]} fell={fell}")
 
 
 if __name__ == "__main__":

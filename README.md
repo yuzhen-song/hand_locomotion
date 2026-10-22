@@ -233,3 +233,27 @@ Train it with the existing loop, just pass the name:
 python 02_train/train_until_walk_creep.py residual     # -> 04_checkpoints/residual_*.zip
 python 07_tools/rollout_measure.py residual --kind best
 ```
+
+### Fingertip friction sweep (crawl gait, 4.8 s open loop)
+
+| tip friction | net displacement | falls |
+|---|---|---|
+| 2.0 (model default) | -0.246 m | no |
+| 4.0 | **-0.065 m** | no |
+| 6.0 | -0.002 m | yes (step 1442) |
+| 10.0 | -0.058 m | no |
+| 16.0 | -0.109 m | no |
+
+Raising friction to 4.0 removes most of the backward slip; 6.0 is the stability
+limit. It still does not create forward thrust - the sweep stays symmetric -
+but the hand no longer slides backwards.
+
+Multi-view recording (side follow, 3/4 front, top, feet close-up):
+
+```bash
+MUJOCO_GL=osmesa python 07_tools/render_schematic.py --gl --views \
+    --gait crawl --friction 4.0 --steps 1600 --every 40 \
+    --out 05_videos/classic_gait_4views.mp4
+```
+
+Output: `05_videos/classic_gait_4views.{mp4,gif}`.
