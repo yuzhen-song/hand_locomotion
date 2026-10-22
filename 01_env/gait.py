@@ -27,6 +27,26 @@ import numpy as np
 LEGS = ("A", "B", "C", "D")
 SWING_ORDER = ("A", "D", "B", "C")
 FORWARD_SIGN = {"C": +1.0, "D": +1.0, "A": -1.0, "B": -1.0}
+# Which legs sit on the +X side. Used by the heading controller.
+SIDE = {"A": +1.0, "C": +1.0, "B": -1.0, "D": -1.0}
+
+
+def yaw_scale(yaw, k=2.0, lo=0.3, hi=1.7):
+    """Per-leg stride scale that steers the heading.
+
+    The 2x2 finger layout produces a systematic yaw moment, so the open-loop
+    reference turns instead of walking straight. Scaling the stride of the +X
+    and -X leg pairs in opposite directions creates a counter moment.
+    """
+    yaw = max(min(float(yaw), 0.6), -0.6)
+    return {leg: float(min(max(1.0 + k * yaw * SIDE[leg], lo), hi)) for leg in LEGS}
+
+
+def yaw_of(quat):
+    """Yaw (rad) from a MuJoCo quaternion (w, x, y, z)."""
+    import math
+    w, x, y, z = quat
+    return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
 
 
 def _smooth(x):
@@ -59,10 +79,14 @@ class CrawlGait:
         off = SWING_ORDER.index(leg) / float(len(SWING_ORDER))
         return ((t / self.period) + off) % 1.0
 
-    def reference(self, t):
-        """Full 16-value joint reference at time t."""
+    def reference(self, t, scale=None):
+        """Full 16-value joint reference at time t.
+
+        scale: optional per-leg stride multiplier (see yaw_scale) for steering.
+        """
         q = self.q0.copy()
         for leg in LEGS:
+            amp = self.stride * (1.0 if scale is None else scale.get(leg, 1.0))
             u = self.leg_phase(leg, t)
             if u < self.duty:
                 s = 1.0 - _smooth(u / self.duty)   # stance: front -> back
@@ -75,7 +99,7 @@ class CrawlGait:
                 s = 1.0 - s
             sign = FORWARD_SIGN[leg]
             k = self.index[(leg, "MCP-FLX")]
-            q[k] = self.q0[k] + sign * self.stride * (2.0 * s - 1.0)
+            q[k] = self.q0[k] + sign * amp * (2.0 * s - 1.0)
             k = self.index[(leg, "PIP")]
             q[k] = self.q0[k] + self.knee * lift
         return q

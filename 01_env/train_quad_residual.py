@@ -26,17 +26,38 @@ import paths  # noqa: E402
 import mujoco  # noqa: E402
 
 from gait import CrawlGait  # noqa: E402
+import train_quad_creep as _base  # noqa: E402
 from train_quad_creep import (  # noqa: E402
     FRONT,
     KNEE_FLOOR,
     QuadWalk,
 )
 
+# Reward re-tuning for the residual setting. The creep values were built for a
+# fast freeform gait; against a 0.6 cm/s reference they do not discriminate:
+#   * stagnation fires below 1.5 mm/step, i.e. below 0.75 m/s -> disable
+#   * the speed term used sigma 0.20, so 0 and 0.12 m/s scored almost the same
+#   * the smoothness penalty dominated every other term early in training
+_base.PEN_STAGNATION = 0.0
+_base.V_TARGET = 0.05        # aim at 5 cm/s, ~8x faster than the open-loop reference
+_base.V_SIGMA = 0.03
+_base.W_SPEED = 6.0
+_base.W_SMOOTH = 0.4
+_base.EPISODE_STEPS = 5000   # 10 s, several gait cycles per episode
+
 RESIDUAL_SCALE = 0.35     # max joint correction in rad
+W_LATERAL = 0.8           # penalty on sideways drift (X), per metre per step
+W_YAW = 0.3               # penalty on heading error (yaw), per radian per step
 GAIT_PERIOD = 2.6         # crawl cycle in seconds (the walking configuration)
 W_TRACK = 0.5             # pull toward the open-loop reference
 W_RES = 0.20              # keep the residual small
 LEGS = ("A", "B", "C", "D")
+
+
+def yaw_of(quat):
+    """Yaw angle from a MuJoCo quaternion (w, x, y, z)."""
+    w, x, y, z = quat
+    return float(np.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)))
 
 
 class QuadWalkResidual(QuadWalk):
@@ -48,6 +69,7 @@ class QuadWalkResidual(QuadWalk):
         self.observation_space = spaces.Box(-np.inf, np.inf, shape=(n,), dtype=np.float32)
         self.gait_t = 0.0
         self.q_ref = self.q0.copy()
+        self.x0 = 0.0
 
     def _phase_feats(self):
         ph = np.array([self.gait.leg_phase(leg, self.gait_t) for leg in LEGS])
@@ -60,7 +82,9 @@ class QuadWalkResidual(QuadWalk):
     def reset(self, **kwargs):
         self.gait_t = 0.0
         self.q_ref = self.gait.reference(0.0)
-        return super().reset(**kwargs)
+        obs, info = super().reset(**kwargs)
+        self.x0 = float(self.data.qpos[0])
+        return obs, info
 
     def _apply_action(self, action):
         a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0) * RESIDUAL_SCALE
@@ -83,7 +107,12 @@ class QuadWalkResidual(QuadWalk):
         obs, reward, done, trunc, info = super().step(action)
         a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
         track = float(np.mean(np.abs(self.data.qpos[7:] - self.q_ref)))
-        reward -= W_TRACK * track + W_RES * float(np.mean(a * a))
+        lateral = abs(float(self.data.qpos[0]) - self.x0)
+        yaw = abs(yaw_of(self.data.qpos[3:7]))
+        reward -= (W_TRACK * track + W_RES * float(np.mean(a * a))
+                   + W_LATERAL * lateral + W_YAW * yaw)
+        info["lateral"] = lateral
+        info["yaw"] = yaw
         return obs, reward, done, trunc, info
 
 
