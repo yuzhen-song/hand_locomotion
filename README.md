@@ -169,3 +169,32 @@ Known issues:
   was too harsh, lowered to 0.8).
 - Older checkpoints were trained with a slightly different knee threshold, so their measured
   score can differ by a few percent.
+
+## 6. Classic gait + residual RL (work in progress)
+
+`01_env/gait.py` holds an open-loop crawl gait generator: one leg swings at a
+time (duty 0.75, order A -> D -> B -> C), and each leg's hip sweeps front to
+back during stance and back to front during swing.
+
+Open-loop test result (no policy, pure PD tracking of the reference):
+
+| Variant | Net displacement in 3.6 s | Falls |
+|---|---|---|
+| crawl, stride 0.45 rad, 1.2 s cycle | **-0.209 m** (backward) | none |
+| crawl, slower cycle (2.0 s) | -0.091 m | none |
+| crawl, faster cycle (0.7 s) | -0.374 m | none |
+| all four legs in phase (shuffle) | +0.027 m | none |
+| crawl with 8x tip friction | -0.034 m | none |
+
+Conclusion: the reference is dynamically stable (tilt < 0.01, never falls) but
+produces **no net thrust**. Measured cause: the fingertip has almost no
+vertical authority - the full joint range lifts it by only ~4 mm - so the swing
+leg cannot clear the ground, and the symmetric sweep cancels out over a cycle.
+Raising tip friction removes the backward drift but does not create forward
+motion.
+
+Therefore the classic gait cannot act as the controller for this hand; it can
+only serve as a **rhythm/phase prior** for residual RL (phase in the
+observation, residual torque or residual angle on top of the reference).
+`07_tools/render_schematic.py` renders the skeleton without OpenGL, for machines
+where the GPU is unavailable.
