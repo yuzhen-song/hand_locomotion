@@ -251,34 +251,58 @@ def main():
         gl.update_scene(d, camera=cam)
         return Image.fromarray(gl.render())
 
+    def add_box(scene, pos, size, rgba):
+        if scene.ngeom >= scene.maxgeom:
+            return
+        g = scene.geoms[scene.ngeom]
+        mujoco.mjv_initGeom(g, mujoco.mjtGeom.mjGEOM_BOX, np.asarray(size, dtype=float),
+                            np.asarray(pos, dtype=float), np.eye(3).flatten(),
+                            np.asarray(rgba, dtype=np.float32))
+        scene.ngeom += 1
+
+    def add_ruler(scene, y0):
+        """World-fixed ticks on the floor, so translation is unmistakable."""
+        for k in range(-4, 61):
+            yy = y0 + k * 0.02
+            major = (k % 5 == 0)
+            add_box(scene, [0.0, yy, 0.0008],
+                    [0.09 if major else 0.05, 0.0012 if major else 0.0007, 0.0008],
+                    [0.2, 0.85, 0.35, 1] if major else [0.35, 0.4, 0.45, 1])
+
     def grab_views():
-        """Four cameras tiled 2x2: side follow, 3/4 front, top, feet close-up."""
-        p = np.array(d.body("platform_mount").xpos)
-        specs = ((0, -8, 0.55, 0.0, "SIDE (follow)"),
-                 (130, -25, 0.60, 0.0, "3/4 FRONT"),
-                 (0, -78, 0.45, 0.0, "TOP"),
-                 (40, -14, 0.30, -0.09, "FEET CLOSE-UP"))
+        """Fixed world cameras: the body visibly crosses the frame."""
+        y0w = y0
+        specs = ((0, -12, 0.60, "FIXED SIDE (world frame)"),
+                 (135, -22, 0.62, "FIXED 3/4"),
+                 (0, -80, 0.50, "FIXED TOP"),
+                 (40, -14, 0.30, "FEET CLOSE-UP (follow)"))
         tile = Image.new("RGB", (528, 400), BG)
         dr = ImageDraw.Draw(tile)
-        fnt = ImageFont.truetype(FONT, 13)
-        for i, (az, el, dist, dz, label) in enumerate(specs):
+        fnt = ImageFont.truetype(FONT, 12)
+        cur = np.array(d.body("platform_mount").xpos)
+        for i, (az, el, dist, label) in enumerate(specs):
             cam = mujoco.MjvCamera()
-            cam.lookat[:] = [float(p[0]), float(p[1]), float(p[2]) + dz]
+            if i == 3:
+                cam.lookat[:] = [float(cur[0]), float(cur[1]), float(cur[2]) - 0.09]
+            else:
+                cam.lookat[:] = [0.0, y0w + 0.20, 0.05]
             cam.distance = dist
             cam.elevation = el
             cam.azimuth = az
             gl.update_scene(d, camera=cam)
+            add_ruler(gl.scene, y0w)
             im = Image.fromarray(gl.render())
             x, y = (i % 2) * 264, (i // 2) * 200
             tile.paste(im, (x, y))
             dr.rectangle([x, y, x + 262, y + 198], outline=(70, 70, 85))
-            dr.rectangle([x, y, x + len(label) * 8 + 10, y + 20], fill=(0, 0, 0))
+            dr.rectangle([x, y, x + len(label) * 7 + 10, y + 19], fill=(0, 0, 0))
             dr.text((x + 5, y + 4), label, font=fnt, fill=TEXT)
-        dy = (float(d.body("platform_mount").xpos[1]) - y0) * 100
-        dr.rectangle([4, 372, 250, 396], fill=(0, 0, 0))
-        dr.text((8, 375), f"t={t:5.2f}s   Y={dy:+6.1f}cm   fric={a.friction or 2.0}",
+        dy = (float(d.body("platform_mount").xpos[1]) - y0w) * 100
+        dr.rectangle([4, 372, 300, 396], fill=(0, 0, 0))
+        dr.text((8, 375), f"t={t:5.2f}s   forward Y={dy:+6.1f} cm   (green tick = {5} cm)",
                 font=fnt, fill=TEXT)
         return tile
+
     out = a.out or os.path.join(paths.VIDEO_DIR, f"gait_{a.gait}{'_gl' if a.gl else '_schematic'}.mp4")
     y0 = float(d.qpos[1])
     t, fell = 0.0, None
