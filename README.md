@@ -418,3 +418,24 @@ The 2&2 diagonal trot is 1.3-2.6x faster than the crawl, and it only works with
 a knee flex (knee=0 gives ~0): with two legs swinging at once the recovery lasts
 twice as long, so retracting the swing leg matters. The fast 1.19 cm/s setting
 pays for it with 9 cm of sideways drift.
+
+### Straightening the trot: a constant stride bias removes the sideways drift
+
+The 2&2 diagonal trot moves +0.45 m forward but +0.43 m sideways in 40 s (it
+crawls at ~43 deg off the target). Feedback on X position or velocity through
+differential stride does nothing (X drift stays 0.6-1.0 cm/s for every gain).
+
+A *constant* stride bias does work. Scale the +X legs (A, C) by (1-bias) and the
+-X legs (B, D) by (1+bias):
+
+| bias | forward | sideways | heading |
+|---|---|---|---|
+| 0.00 | +1.13 cm/s | +0.43 cm/s | +43 deg |
+| -0.205 | +0.83 | +0.17 | +11.8 deg |
+| **-0.21** | **+0.94** | **+0.06** | **+3.6 deg** |
+| -0.215 | +1.09 | -0.16 | -8.3 deg |
+
+At bias ~-0.212 the hand walks essentially straight at ~1.0 cm/s, i.e. straight
+at about 90% of the drifting speed. Recording:
+
+`05_videos/trot_straight_40s.{mp4,gif}` (bias -0.212, zoom 1.25)

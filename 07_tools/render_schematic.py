@@ -195,6 +195,8 @@ def main():
     ap.add_argument("--stride", type=float, default=0.35, help="hip sweep amplitude in rad")
     ap.add_argument("--knee", type=float, default=0.0, help="swing knee flex in rad")
     ap.add_argument("--zoom", type=float, default=1.0, help="camera distance multiplier")
+    ap.add_argument("--bias", type=float, default=0.0,
+                    help="differential stride bias: +X legs x(1-bias), -X legs x(1+bias); use to cancel sideways drift")
     ap.add_argument("--friction", type=float, default=None,
                     help="override the fingertip sliding friction (model default 2.0)")
     a = ap.parse_args()
@@ -336,7 +338,13 @@ def main():
     try:
         for step in range(a.steps):
             t += m.opt.timestep
-            pd(GAIT.reference(t) if a.gait != "hold" else q0)
+            if a.gait == "hold":
+                pd(q0)
+            elif a.bias:
+                sc = {"A": 1.0 - a.bias, "C": 1.0 - a.bias, "B": 1.0 + a.bias, "D": 1.0 + a.bias}
+                pd(GAIT.reference(t, sc))
+            else:
+                pd(GAIT.reference(t))
             mujoco.mj_step(m, d)
             R = np.array(d.body("platform_mount").xmat).reshape(3, 3)
             if R[2, 0] < 0.7 or d.qpos[2] < 0.05:
