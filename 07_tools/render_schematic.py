@@ -10,6 +10,7 @@ Usage:
   python 07_tools/render_schematic.py --gait crawl --gl --out 05_videos/gl.mp4
 """
 import argparse
+import math
 import os
 import sys
 
@@ -26,7 +27,7 @@ import imageio_ffmpeg  # noqa: E402
 import mujoco  # noqa: E402
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
-from gait import PHASE_SETS, CrawlGait  # noqa: E402
+from gait import PHASE_SETS, SIDE, CrawlGait, yaw_of  # noqa: E402
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 FONT_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
@@ -195,6 +196,8 @@ def main():
     ap.add_argument("--stride", type=float, default=0.35, help="hip sweep amplitude in rad")
     ap.add_argument("--knee", type=float, default=0.0, help="swing knee flex in rad")
     ap.add_argument("--zoom", type=float, default=1.0, help="camera distance multiplier")
+    ap.add_argument("--yaw_gain", type=float, default=0.0,
+                    help="P gain on yaw; differential stride correction that damps the body spin")
     ap.add_argument("--bias", type=float, default=0.0,
                     help="differential stride bias: +X legs x(1-bias), -X legs x(1+bias); use to cancel sideways drift")
     ap.add_argument("--friction", type=float, default=None,
@@ -340,8 +343,12 @@ def main():
             t += m.opt.timestep
             if a.gait == "hold":
                 pd(q0)
-            elif a.bias:
-                sc = {"A": 1.0 - a.bias, "C": 1.0 - a.bias, "B": 1.0 + a.bias, "D": 1.0 + a.bias}
+            elif a.bias or a.yaw_gain:
+                yaw = yaw_of(d.qpos[3:7])
+                yaw = math.atan2(math.sin(yaw), math.cos(yaw))
+                corr = float(np.clip(a.yaw_gain * yaw, -0.4, 0.4))
+                sc = {leg: float(np.clip((1.0 - a.bias * SIDE[leg]) * (1.0 + corr * SIDE[leg]), 0.4, 1.7))
+                      for leg in "ABCD"}
                 pd(GAIT.reference(t, sc))
             else:
                 pd(GAIT.reference(t))

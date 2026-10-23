@@ -439,3 +439,25 @@ At bias ~-0.212 the hand walks essentially straight at ~1.0 cm/s, i.e. straight
 at about 90% of the drifting speed. Recording:
 
 `05_videos/trot_straight_40s.{mp4,gif}` (bias -0.212, zoom 1.25)
+
+### Yaw feedback on the trot: +85% speed and relatively straighter
+
+The constant bias cancels the mean drift, but the body still spins (yaw swings
++-100 deg), so the path wobbles: the first 5 s veer +42 deg and later the
+instantaneous heading swings +-25 deg, though the cumulative error stays within
++-7 deg and |X| stays under 6.6 cm over 40 s.
+
+A yaw P controller on the stride differential (scaling the +X/-X pairs in
+opposite directions) does have authority:
+
+| yaw gain | forward | sideways | lateral/distance |
+|---|---|---|---|
+| 0.0 | +1.00 cm/s | -0.02 | 16.5% |
+| 0.3 | +1.59 | +0.19 | - |
+| **0.5** | **+1.85 cm/s** | +0.19 | **11%** |
+| 0.6 | falls | | |
+
+Damping the spin frees energy that was going into rotation: **+85% speed** and a
+lower sideways-to-forward ratio. Recording (bias -0.212, yaw gain 0.5):
+
+`05_videos/trot_fast_straight_40s.{mp4,gif}`
