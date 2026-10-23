@@ -383,3 +383,38 @@ Conclusion: ~0.6 cm/s is structural for this hand, not a tuning problem. The
 5 mm of foot lift is the hard limit; without clearance the recovery stroke
 always brakes the body. Going faster needs more joint range or longer fingers,
 not a different spring or friction value.
+
+### Which axis, and which gait? (measured)
+
+Fingertip authority, full joint range, world frame:
+
+| joint | range | tip X | tip Y | tip Z | X per rad |
+|---|---|---|---|---|---|
+| MCP-FLX | 1.80 rad | 0.00 cm | **8.6-10.7 cm** | 0.55 cm | - |
+| MCP-ABD | 2.92 rad | **2.77 cm** | 2.57 cm | 1.31 cm | 0.95 cm/rad |
+| PIP | 2.38 rad | 2.54 cm | 5.43 cm | 2.99 cm | - |
+| DIP | 2.31 rad | 0 | 0 | 0 | - |
+
+MCP-ABD has the widest range but the smallest tip travel: it rotates the finger
+about an axis nearly parallel to the finger, so the tip barely translates. X is
+therefore the *worse* direction (2.77 cm vs 8.6 cm usable stroke).
+
+Sweeping MCP-ABD (walking in X), 16 configs over four phase patterns, all walk
+essentially nowhere (|v| < 0.6 cm/s, mostly negative) and the 2&2 side pattern
+falls over twice. Walking in Y is the only viable direction.
+
+Gait comparison while sweeping MCP-FLX (Y), 13 s per trial:
+
+| gait | period | stride | knee | Y speed | X drift | max tilt |
+|---|---|---|---|---|---|---|
+| 3&1 crawl ADBC | 1.6 | 0.35 | 0.0 | +0.46 cm/s | +0.6 cm | 0.015 |
+| 3&1 crawl ADBC | 2.6 | 0.6 | 0.0 | +0.44 | +1.7 | 0.046 |
+| **2&2 diagonal AD/BC** | 2.6 | 0.6 | 0.2 | **+0.60** | +2.8 | 0.033 |
+| **2&2 diagonal AD/BC** | 1.6 | 0.6 | 0.2 | **+1.19** | +9.3 | 0.032 |
+| 2&2 side AC/BD | any | any | any | all negative | | falls |
+| 2&2 front/back | any | any | any | all negative | | |
+
+The 2&2 diagonal trot is 1.3-2.6x faster than the crawl, and it only works with
+a knee flex (knee=0 gives ~0): with two legs swinging at once the recovery lasts
+twice as long, so retracting the swing leg matters. The fast 1.19 cm/s setting
+pays for it with 9 cm of sideways drift.
