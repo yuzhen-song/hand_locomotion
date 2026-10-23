@@ -483,3 +483,37 @@ deterministic reference on this hand. The reference plus a scalar yaw P gain
 (1.85 cm/s, 11% sideways) is still the best controller. The blocker is actuator
 authority - four fingertips that never leave the ground, 5 mm of lift and
 2.77 cm of lateral stroke leave little for a learned controller to exploit.
+
+### Correction: the foot can lift ~2 cm, the 5 mm figure was measured with knee=0
+
+The earlier claim that "5 mm of foot lift is the hard limit" was wrong. 5.2 mm
+is what the tip moves passively when the gait commands no lift (knee=0).
+
+Measured tip height against PIP angle (kinematics only):
+
+| PIP | -0.49 | 0.0 | 0.80 | 1.20 | 1.60 (home) | 1.89 (limit) |
+|---|---|---|---|---|---|---|
+| tip z | 35.50 cm | 33.83 | 31.92 | 31.68 | 31.98 | 32.51 |
+
+Flexing PIP past the flat spot raises the tip, and the tip travels ~3 cm over
+the joint range. Widening the PIP limit from 1.89 to 2.50 rad changes nothing in
+the gait (1.41 -> 1.41 cm/s), so the joint stop is not the binding constraint.
+
+What actually matters is the gait's `knee` (swing flex) parameter:
+
+| knee | forward (no bias/yaw) | foot clearance |
+|---|---|---|
+| 0.2 | +1.41 cm/s | 1.79 cm |
+| 0.4 | +2.88 | 2.07 |
+| 0.6 | **+3.20 cm/s** | 2.23 |
+
+So the structure is fine and there is a 2.3x speed headroom in the parameters.
+The trade-off is stability: with the straight-tuned bias (-0.212) and yaw gain
+0.5, knee 0.4 veers (sideways/forward 89%), knee 0.6 falls, and increasing the
+bias to compensate falls within 0.8 s. Speed and straightness cannot currently
+be had at the same time; the best stable point stays at knee 0.2
+(1.82 cm/s, 6% sideways, max 5.8 cm lateral in 25 s).
+
+That coupling - three gains and strong nonlinear interactions - is exactly the
+kind of tuning a learned controller should beat a human at, which is the
+remaining argument for RL here.
