@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>四指机器人手 · 步态与动力学</title>
+<style>
+  :root { --fg:#1f2328; --muted:#59636e; --accent:#0969da; --line:#d1d9e0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#f6f8fa; color:var(--fg);
+         font-family:-apple-system,"Segoe UI","Noto Sans SC","PingFang SC",
+                     "Hiragino Sans GB","Microsoft YaHei",sans-serif;
+         line-height:1.7; }
+  main { max-width:860px; margin:0 auto; padding:64px 28px 96px; background:#fff;
+         box-shadow:0 0 0 1px var(--line); }
+  h1 { font-size:2rem; margin:0 0 .2em; }
+  .sub { color:var(--muted); margin-bottom:2.4em; }
+  h2 { font-size:1.15rem; margin:2.4em 0 .6em; padding-bottom:.35em;
+       border-bottom:1px solid var(--line); }
+  a.card { display:block; padding:16px 18px; margin:.7em 0; text-decoration:none;
+           color:inherit; border:1px solid var(--line); border-radius:8px;
+           transition:.15s; }
+  a.card:hover { border-color:var(--accent); transform:translateY(-1px);
+                 box-shadow:0 4px 14px rgba(9,105,218,.12); }
+  a.card b { color:var(--accent); }
+  a.card span { display:block; color:var(--muted); font-size:.92rem; }
+  table { border-collapse:collapse; width:100%; margin:1em 0; font-size:.93rem; }
+  th,td { border:1px solid var(--line); padding:.42em .65em; text-align:left; }
+  th { background:#f0f3f6; }
+  .big { display:inline-block; font-size:1.6rem; font-weight:700; color:#1a7f37; }
+</style>
+</head>
+<body><main>
+
+<h1>四指机器人手 · 步态与动力学</h1>
+<p class="sub">17 自由度的手，靠指节折叠行走。<span class="big">3.11 cm/s</span></p>
+
+<h2>文档</h2>
+<a class="card" href="06_docs/dynamics_analysis.html">
+  <b>经典控制与动力学完整分析</b>
+  <span>运动学 · 接触与静力学 · 刚体动力学 · 步态代数 · 三级串级控制 · 实测结果 · 10 张图</span>
+</a>
+<a class="card" href="https://github.com/yuzhen-song/hand_locomotion/blob/main/README.md">
+  <b>README</b>
+  <span>把这只手调成会走的完整记录：可行性筛选、步态搜索、参数标定</span>
+</a>
+
+<h2>视频</h2>
+<a class="card" href="05_videos/trot_best_40s.mp4">
+  <b>3.11 cm/s，40 秒走 1.24 m</b>
+  <span>三级串级控制：前馈偏置 + 偏航内环 + 横向慢外环</span>
+</a>
+<a class="card" href="05_videos/trot_fast_straight_40s.mp4">
+  <b>1.85 cm/s，第一版能直着走的</b>
+  <span>2&2 对角步态 + 静态偏置 + 偏航阻尼</span>
+</a>
+<a class="card" href="05_videos/crawl_wide_slow_40s.mp4">
+  <b>0.49 cm/s，最早的 3&1 爬行</b>
+  <span>只贴地滑、不敢抬脚的版本</span>
+</a>
+
+<h2>关键数字</h2>
+<table>
+  <tr><th>项目</th><th>数值</th></tr>
+  <tr><td>机构</td><td>4 指 × 4 关节，16 个位置伺服</td></tr>
+  <tr><td>支撑面</td><td>12.7 cm (X) × 18.2 cm (Y)</td></tr>
+  <tr><td>体重</td><td>6.23 N</td></tr>
+  <tr><td>最终速度</td><td>3.11 cm/s（比第一版快 6.3 倍）</td></tr>
+  <tr><td>横向偏差</td><td>6%（40 秒走 1.24 m）</td></tr>
+  <tr><td>关节权限</td><td>Y 向 6.0 cm/rad，X 向仅 0.45 cm/rad</td></tr>
+</table>
+
+</main></body></html>
