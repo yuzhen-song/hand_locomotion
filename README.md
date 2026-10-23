@@ -338,3 +338,48 @@ fixes it.
 Long recording of the reference gait (30 s, four cameras):
 
 `05_videos/classic_walk_long_4views.{mp4,gif}`
+
+### Why is it so slow? (measured breakdown)
+
+Mass 1.14 kg. Hip (MCP-FLX) usable range [-1.57, +0.23], home -1.10; PIP
+[-0.49, +1.89], home +1.60. Tip sensitivity 5.3 cm/rad on the hip.
+
+Kinematic ceiling of the current gait:
+
+| quantity | value |
+|---|---|
+| hip sweep per cycle | 0.70 rad |
+| fingertip travel per cycle | 3.71 cm |
+| stance duration | 2.21 s (2.6 s x 0.85) |
+| **ceiling, zero slip** | **1.68 cm/s** |
+| **measured** | **0.57 cm/s** (34%) |
+
+Speed resolved by gait phase (averaged over several cycles):
+
+| phase | mean v | which leg swings |
+|---|---|---|
+| 0.50-0.55 | **+9.2 / +7.8 cm/s** | none (all four down) |
+| 0.10-0.20 | +1.7 .. +2.8 | C |
+| 0.30-0.40 | **-2.7 / -2.1** | B |
+| 0.90-0.95 | **-3.8 / -7.8** | A |
+
+The body surges forward then is pulled back every time a leg swings. The swing
+(recovery) stroke runs at ~9.5 cm/s, 5.6x the stance push speed, so its braking
+dominates. Root cause: **all four fingertips are in floor contact at every
+phase** (12 contacts in all 20 phase buckets, never zero) - the swing leg never
+leaves the ground, because joint motion lifts a tip by only ~5 mm.
+
+Tested and rejected:
+
+| hypothesis | experiment | result |
+|---|---|---|
+| contact rolls/slips | condim 4 -> 6, rolling friction 0.005-0.1 | 0.47-0.57, no change |
+| rear legs drag | rear stride x0 / x0.3 | 0.57 -> 0.33 (slower) |
+| rear legs not loaded | rear PIP -0.1 .. -0.3 | 0.57 -> 0.37 (slower) |
+| servos too soft | PD tracking error | 0.016 rad, fine |
+| round 4.3 cm ball proxy | replaced each tip with a flat 14 mm pad | all settings go backward |
+
+Conclusion: ~0.6 cm/s is structural for this hand, not a tuning problem. The
+5 mm of foot lift is the hard limit; without clearance the recovery stroke
+always brakes the body. Going faster needs more joint range or longer fingers,
+not a different spring or friction value.
