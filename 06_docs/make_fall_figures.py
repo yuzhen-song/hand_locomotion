@@ -61,7 +61,7 @@ ax.axhline(0, color="k", lw=1.2)
 ax.fill_between(tb, mb, 0, where=(mb < 0), color="tab:red", alpha=0.3)
 ax.axvline(bad["fell"], color="k", ls="--", lw=1.5)
 ax.text(bad["fell"] + 0.02, np.nanmax(mb) * 0.7, "判定摔倒 %.2fs" % bad["fell"], fontsize=9)
-ax.set_title("② bias = −0.40：出界之后一路走低，再也回不来（出界占 62%）", fontsize=10)
+ax.set_title("② bias = -0.40：出界之后一路走低，再也回不来（出界占 62%）", fontsize=10)
 ax.set_xlabel("时间 (s)")
 ax.set_ylabel("CoM 裕度 (cm)")
 fig.suptitle("同一套判据、同一个机构：区别不在“有没有出界”，而在“出界之后回不回得来”",
@@ -114,7 +114,7 @@ draw_body(axes[2], 0.85, 0.42, "③ 倾覆",
 axes[2].annotate("", xy=(EDGE_X + 0.75, 0.35), xytext=(EDGE_X + 0.05, 0.05),
                  arrowprops=dict(arrowstyle="-|>", color="tab:orange", lw=2.4,
                                  connectionstyle="arc3,rad=-0.45"))
-axes[2].text(EDGE_X + 0.55, 0.75, "θ̈ > 0\n越倒越快", fontsize=8.5, color="tab:orange")
+axes[2].text(EDGE_X + 0.55, 0.75, "$\\ddot\\theta > 0$\n越倒越快", fontsize=8.5, color="tab:orange")
 fig.suptitle("倾覆力学：质心投影越过支撑边缘的那一刻，重力矩由“被平衡”变成“加速”",
              fontsize=11)
 fig.tight_layout()
@@ -150,7 +150,7 @@ for ax, wt in zip(axes, want):
     if i == 0:
         ax.set_ylabel("Y (cm)", fontsize=8)
     ax.set_xlabel("X (cm)", fontsize=8)
-fig.suptitle("实际摔倒过程（bias = −0.40）：红×是质心投影，它一路向 +X 漂，蓝色支撑面跟不上",
+fig.suptitle("实际摔倒过程（bias = -0.40）：红×是质心投影，它一路向 +X 漂，蓝色支撑面跟不上",
              fontsize=11)
 fig.tight_layout()
 fig.savefig(os.path.join(FIG, "fig_f3_fall_frames.png"))
@@ -169,10 +169,10 @@ for t_out, c in zip((0.10, 0.15, 0.22, 0.30),
 ax.axhline(1.5, color="k", ls=":", lw=1.2)
 ax.text(0.30, 1.56, "倾斜超过 1.5 倍初始角 → 摆动腿来不及落地", fontsize=8.5)
 ax.axvline(1 / w, color="0.4", ls="--", lw=1.2)
-ax.text(1 / w + 0.005, 0.25, "1/ω = 0.103 s", fontsize=8.5, rotation=90, color="0.35")
+ax.text(1 / w + 0.005, 0.25, "$1/\\omega=0.103$ s", fontsize=8.5, rotation=90, color="0.35")
 ax.set_xlabel("出界后经过的时间 (s)")
-ax.set_ylabel("倾斜角放大倍数  θ(t)/θ0")
-ax.set_title("倾覆是不稳定平衡：θ(t) = θ0·cosh(ωt)，ω = √(g/h) = %.1f rad/s" % w, fontsize=10)
+ax.set_ylabel("倾斜角放大倍数  $\\theta(t)/\\theta_0$")
+ax.set_title("倾覆是不稳定平衡：$\\theta(t)=\\theta_0\\cosh(\\omega t)$，$\\omega=\\sqrt{g/h}=%.1f$ rad/s" % w, fontsize=10)
 ax.legend(fontsize=8)
 ax.set_ylim(0.9, 4.2)
 fig.tight_layout()
@@ -199,7 +199,7 @@ def rel_phase(r):
 
 fig, axes = plt.subplots(1, 2, figsize=(10.6, 4.0))
 for ax, r, name, col in ((axes[0], good, "调好的配置（活下来）", "tab:green"),
-                         (axes[1], bad, "bias = −0.40（摔）", "tab:red")):
+                         (axes[1], bad, "bias = -0.40（摔）", "tab:red")):
     t, off, vel = rel_phase(r)
     ok = np.isfinite(off)
     ax.plot(off[ok], vel[ok], lw=0.8, color=col, alpha=0.85)
