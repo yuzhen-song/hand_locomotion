@@ -563,3 +563,23 @@ tau 4 s with lat_gain -2 -> 3.11 cm/s at 6%. If straightness matters more,
 tau 2 s with lat_gain -3 gives 2.93 cm/s at 4%.
 
 Recording: `05_videos/trot_best_40s.{mp4,gif}`
+
+### The controller is now a class: `01_env/controller.py`
+
+The three-level cascade is packaged as `TrotController`:
+
+```python
+from controller import TrotController
+ctl = TrotController(order, q0)          # defaults = the 3.11 cm/s setting
+ctl.reset(x0, y0)                        # once, after the body settles
+while ...:
+    q_target = ctl.targets(t, d.qpos, dt)  # feed to a PD loop
+    ...
+```
+
+`targets()` is the only interface: it reads the base qpos, updates the yaw and
+lateral loops internally (the lateral error is low-passed with a 4 s constant),
+and returns the joint targets.  It reproduces the tuned run exactly: 40 s ->
+1.243 m forward, 3.11 cm/s, 6% sideways, 9.4 cm max lateral.  The renderer now
+drives this class instead of repeating the loop inline, so the same object can
+later carry an online-tuned (RL) set of gains.

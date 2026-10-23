@@ -27,6 +27,7 @@ import imageio_ffmpeg  # noqa: E402
 import mujoco  # noqa: E402
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
+from controller import TrotController  # noqa: E402
 from gait import PHASE_SETS, SIDE, CrawlGait, yaw_of  # noqa: E402
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
@@ -228,6 +229,13 @@ def main():
             kw[key] = getattr(a, key)
     print(f"gait {a.gait}: {kw}", flush=True)
     GAIT = CrawlGait(order, q0, **kw)
+    CTL = None
+    if a.bias or a.yaw_gain or a.lat_gain:
+        CTL = TrotController(order, q0, period=kw["period"], duty=kw["duty"],
+                             stride=kw["stride"], knee=kw["knee"],
+                             phases=a.gait if a.gait in PHASE_SETS else "crawl",
+                             bias=a.bias, yaw_gain=a.yaw_gain,
+                             lat_gain=a.lat_gain, lat_tau=a.lat_tau)
 
     def pd(target):
         u = np.zeros(m.nu)
@@ -327,7 +335,8 @@ def main():
     y0 = float(d.qpos[1])
     x0 = float(d.qpos[0])
     t, fell = 0.0, None
-    xf = [0.0]
+    if CTL is not None:
+        CTL.reset(float(d.qpos[0]), float(d.qpos[1]))
     tmp = tempfile.mkdtemp(prefix="gaitframes_")
     nframe = [0]
     is_gif = out.lower().endswith(".gif")
@@ -348,19 +357,8 @@ def main():
             t += m.opt.timestep
             if a.gait == "hold":
                 pd(q0)
-            elif a.bias or a.yaw_gain or a.lat_gain:
-                yaw = yaw_of(d.qpos[3:7])
-                yaw = math.atan2(math.sin(yaw), math.cos(yaw))
-                corr = float(np.clip(a.yaw_gain * yaw, -0.4, 0.4))
-                xerr = float(d.qpos[0]) - x0
-                if a.lat_tau > 0:
-                    alpha = math.exp(-m.opt.timestep / a.lat_tau)
-                    xf[0] = alpha * xf[0] + (1 - alpha) * xerr
-                    xerr = xf[0]
-                beff = float(np.clip(a.bias + a.lat_gain * xerr, -0.7, 0.7))
-                sc = {leg: float(np.clip((1.0 - beff * SIDE[leg]) * (1.0 + corr * SIDE[leg]), 0.35, 1.75))
-                      for leg in "ABCD"}
-                pd(GAIT.reference(t, sc))
+            elif CTL is not None:
+                pd(CTL.targets(t, d.qpos, m.opt.timestep))
             else:
                 pd(GAIT.reference(t))
             mujoco.mj_step(m, d)
