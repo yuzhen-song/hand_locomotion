@@ -7,12 +7,14 @@ loaded from a CDN so the equations typeset when the page is opened.
 import base64
 import os
 import re
+import sys
 
 import markdown
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, "dynamics_analysis.md")
-OUT = os.path.join(HERE, "dynamics_analysis.html")
+STEM = os.path.splitext(sys.argv[1] if len(sys.argv) > 1 else "dynamics_analysis")[0]
+SRC = os.path.join(HERE, STEM + ".md")
+OUT = os.path.join(HERE, STEM + ".html")
 
 text = open(SRC, encoding="utf-8").read()
 
@@ -34,7 +36,8 @@ HTML = """<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>四指机器人手：经典控制与动力学完整分析</title>
+<title>四指手 · 动力学与稳定性</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <script>
 window.MathJax = {
   tex: {inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
