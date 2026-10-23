@@ -461,3 +461,25 @@ Damping the spin frees energy that was going into rotation: **+85% speed** and a
 lower sideways-to-forward ratio. Recording (bias -0.212, yaw gain 0.5):
 
 `05_videos/trot_fast_straight_40s.{mp4,gif}`
+
+### Did RL beat the hand-tuned controller? No (third attempt)
+
+The residual env now sits on the fast straight trot (bias -0.212, yaw gain 0.5),
+with a retuned reward (stagnation off, target 5 cm/s, sigma 0.03, smoothness
+0.4, lateral/yaw penalties) so that zero residual already earns +0.197/step.
+
+600k PPO steps on the RTX 4090:
+
+| controller | mean reward / step | 10 s forward | 10 s sideways | survives |
+|---|---|---|---|---|
+| zero residual (reference) | **+0.197** | +0.162 m | +0.026 m | yes |
+| residual RL, 600k steps | +0.154 (peak 0.154) | +0.024 m | +0.094 m | **falls at 0.5 s** |
+
+The policy never climbed above the "do nothing" baseline and, in rollout, walks
+into a sideways fall within half a second (same on three seeds).
+
+Three RL attempts (400k, 400k, 600k steps) have all failed to beat the
+deterministic reference on this hand. The reference plus a scalar yaw P gain
+(1.85 cm/s, 11% sideways) is still the best controller. The blocker is actuator
+authority - four fingertips that never leave the ground, 5 mm of lift and
+2.77 cm of lateral stroke leave little for a learned controller to exploit.

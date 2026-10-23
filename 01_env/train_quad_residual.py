@@ -25,7 +25,7 @@ import paths  # noqa: E402
 
 import mujoco  # noqa: E402
 
-from gait import CrawlGait  # noqa: E402
+from gait import PHASE_SETS, SIDE, CrawlGait, yaw_of  # noqa: E402
 import train_quad_creep as _base  # noqa: E402
 from train_quad_creep import (  # noqa: E402
     FRONT,
@@ -45,10 +45,13 @@ _base.W_SPEED = 6.0
 _base.W_SMOOTH = 0.4
 _base.EPISODE_STEPS = 5000   # 10 s, several gait cycles per episode
 
-RESIDUAL_SCALE = 0.35     # max joint correction in rad
+RESIDUAL_SCALE = 0.25     # max joint correction in rad
 W_LATERAL = 0.8           # penalty on sideways drift (X), per metre per step
-W_YAW = 0.3               # penalty on heading error (yaw), per radian per step
-GAIT_PERIOD = 2.6         # crawl cycle in seconds (the walking configuration)
+W_YAW = 0.1               # gentle penalty on yaw oscillation
+GAIT_PERIOD = 1.6         # trot cycle in seconds
+TROT_BIAS = -0.212        # constant +X/-X stride bias (cancels the mean drift)
+YAW_GAIN = 0.5            # yaw P controller on the stride differential
+W_HEAD = 0.0              # off: instantaneous heading oscillates with the gait, it punished the good gait
 W_TRACK = 0.5             # pull toward the open-loop reference
 W_RES = 0.20              # keep the residual small
 LEGS = ("A", "B", "C", "D")
@@ -63,13 +66,23 @@ def yaw_of(quat):
 class QuadWalkResidual(QuadWalk):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.gait = CrawlGait(self.order, self.q0, period=GAIT_PERIOD)
+        self.gait = CrawlGait(self.order, self.q0, period=GAIT_PERIOD,
+                              duty=0.5, stride=0.6, knee=0.2,
+                              phases=PHASE_SETS["trot"])
         self.w_creep = 0.0                        # the phase now comes from the gait clock
         n = self.model.nq + self.model.nv + 8
         self.observation_space = spaces.Box(-np.inf, np.inf, shape=(n,), dtype=np.float32)
         self.gait_t = 0.0
         self.q_ref = self.q0.copy()
         self.x0 = 0.0
+
+    def _reference(self):
+        yaw = yaw_of(self.data.qpos[3:7])
+        yaw = float(np.arctan2(np.sin(yaw), np.cos(yaw)))
+        corr = float(np.clip(YAW_GAIN * yaw, -0.4, 0.4))
+        scale = {leg: float(np.clip((1.0 - TROT_BIAS * SIDE[leg]) * (1.0 + corr * SIDE[leg]),
+                                    0.4, 1.7)) for leg in LEGS}
+        return self.gait.reference(self.gait_t, scale)
 
     def _phase_feats(self):
         ph = np.array([self.gait.leg_phase(leg, self.gait_t) for leg in LEGS])
@@ -83,6 +96,7 @@ class QuadWalkResidual(QuadWalk):
         self.gait_t = 0.0
         self.q_ref = self.gait.reference(0.0)
         obs, info = super().reset(**kwargs)
+        self.q_ref = self._reference()
         self.x0 = float(self.data.qpos[0])
         return obs, info
 
@@ -103,16 +117,20 @@ class QuadWalkResidual(QuadWalk):
 
     def step(self, action):
         self.gait_t += self.model.opt.timestep
-        self.q_ref = self.gait.reference(self.gait_t)
+        self.q_ref = self._reference()
         obs, reward, done, trunc, info = super().step(action)
         a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
         track = float(np.mean(np.abs(self.data.qpos[7:] - self.q_ref)))
         lateral = abs(float(self.data.qpos[0]) - self.x0)
         yaw = abs(yaw_of(self.data.qpos[3:7]))
+        vx_w = float(self.data.qvel[0]); vy_w = float(self.data.qvel[1])
+        speed = float(np.hypot(vx_w, vy_w))
+        head = abs(float(np.arctan2(vx_w, vy_w))) if speed > 0.005 else 0.0
         reward -= (W_TRACK * track + W_RES * float(np.mean(a * a))
-                   + W_LATERAL * lateral + W_YAW * yaw)
+                   + W_LATERAL * lateral + W_YAW * yaw + W_HEAD * head)
         info["lateral"] = lateral
         info["yaw"] = yaw
+        info["head"] = head
         return obs, reward, done, trunc, info
 
 
