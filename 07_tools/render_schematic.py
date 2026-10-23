@@ -200,6 +200,8 @@ def main():
                     help="P gain on yaw; differential stride correction that damps the body spin")
     ap.add_argument("--lat_gain", type=float, default=0.0,
                     help="closed loop on lateral position: bias_eff = bias + lat_gain*x")
+    ap.add_argument("--lat_tau", type=float, default=0.0,
+                    help="low-pass time constant (s) on the lateral error; slow outer loop")
     ap.add_argument("--bias", type=float, default=0.0,
                     help="differential stride bias: +X legs x(1-bias), -X legs x(1+bias); use to cancel sideways drift")
     ap.add_argument("--friction", type=float, default=None,
@@ -325,6 +327,7 @@ def main():
     y0 = float(d.qpos[1])
     x0 = float(d.qpos[0])
     t, fell = 0.0, None
+    xf = [0.0]
     tmp = tempfile.mkdtemp(prefix="gaitframes_")
     nframe = [0]
     is_gif = out.lower().endswith(".gif")
@@ -349,7 +352,12 @@ def main():
                 yaw = yaw_of(d.qpos[3:7])
                 yaw = math.atan2(math.sin(yaw), math.cos(yaw))
                 corr = float(np.clip(a.yaw_gain * yaw, -0.4, 0.4))
-                beff = float(np.clip(a.bias + a.lat_gain * (float(d.qpos[0]) - x0), -0.7, 0.7))
+                xerr = float(d.qpos[0]) - x0
+                if a.lat_tau > 0:
+                    alpha = math.exp(-m.opt.timestep / a.lat_tau)
+                    xf[0] = alpha * xf[0] + (1 - alpha) * xerr
+                    xerr = xf[0]
+                beff = float(np.clip(a.bias + a.lat_gain * xerr, -0.7, 0.7))
                 sc = {leg: float(np.clip((1.0 - beff * SIDE[leg]) * (1.0 + corr * SIDE[leg]), 0.35, 1.75))
                       for leg in "ABCD"}
                 pd(GAIT.reference(t, sc))

@@ -544,3 +544,22 @@ Progress of the forward speed across the session:
 | crawl, tuned | 0.57 |
 | 2&2 trot + bias + yaw | 1.82 |
 | **trot + grid + closed loop** | **3.04 cm/s (6.2x)** |
+
+### Slow outer loop (low-pass on the lateral error)
+
+Acting on the raw lateral position makes the two loops fight. Low-passing the
+outer error with time constant tau:
+
+| outer loop | forward | sideways | max lateral |
+|---|---|---|---|
+| none | 3.08 cm/s | 9% | 11.9 cm |
+| fast (tau 0.8 s), lat_gain -2 | 3.03 | 7% | 10.1 |
+| **slow (tau 4 s), lat_gain -2** | **3.11** | **6%** | **9.4** |
+| slow (tau 2 s), lat_gain -3 | 2.93 | 4% | 6.9 |
+| lat_gain -4 | falls | | |
+
+Integral-only outer loop is worse (2.60 cm/s at 11%) or falls. Best compromise:
+tau 4 s with lat_gain -2 -> 3.11 cm/s at 6%. If straightness matters more,
+tau 2 s with lat_gain -3 gives 2.93 cm/s at 4%.
+
+Recording: `05_videos/trot_best_40s.{mp4,gif}`
