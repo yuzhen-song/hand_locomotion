@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "01_env"))
 import mujoco  # noqa: E402
 
 from controller import TrotController  # noqa: E402
-from gait import PHASE_SETS, SIDE, CrawlGait, yaw_of  # noqa: E402
+from gait import PHASE_SETS, SIDE, CrawlGait, heading_of  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 FIG = os.path.join(ROOT, "06_docs", "figs")
@@ -75,7 +75,7 @@ def run(controller=None, gait=None, steps=20000, log_tips=False):
         mujoco.mj_step(m, d)
         xs.append(float(d.qpos[0]) - x0)
         ys.append(float(d.qpos[1]) - y0)
-        yaws.append(math.degrees(yaw_of(d.qpos[3:7])))
+        yaws.append(math.degrees(heading_of(d.qpos[3:7])))
         if log_tips:
             tipsh.append([float(d.body(b).xpos[2]) * 100 for b in TIPB.values()])
         R = np.array(d.body("platform_mount").xmat).reshape(3, 3)
@@ -347,7 +347,7 @@ axes[0].set_aspect("equal", adjustable="datalim")
 axes[1].plot(best["t"] * np.ones_like(best["yaw"]), best["yaw"], lw=1.0, color="tab:red", alpha=0.8)
 axes[1].set_xlabel("time (s)")
 axes[1].set_ylabel("body yaw (deg)")
-axes[1].set_title("Why the inner loop is needed: yaw swings +-100 deg")
+axes[1].set_title("Heading: the palm only swings +-10 deg (it is not spinning)")
 fig.tight_layout()
 fig.savefig(os.path.join(FIG, "fig9_run.png"))
 plt.close(fig)

@@ -94,7 +94,7 @@ for st in range(int(DUR / DT)):
         continue
     body = np.array(d.body("platform_mount").xpos) * 100
     R = np.array(d.body("platform_mount").xmat).reshape(3, 3)
-    yaw = math.atan2(R[1, 0], R[0, 0])
+    yaw = math.atan2(-R[0, 1], R[1, 1])
     poly = {}
     for lg in LEGS:
         pts = [np.array(d.xanchor[JID[j]]) * 100 for j in CHAIN[lg]]
@@ -174,8 +174,8 @@ CAPTIONS = [
     (4.5, "② 2&2 对角步态：A+D 一组，B+C 一组，永远有一组踩在地上"),
     (9.0, "③ 支撑相（蓝）：指尖踩住地面不动 → 身体被反推向前，这叫“锚定”"),
     (14.0, "④ 摆动相（橙）：指尖抬起 2cm、向前挪 → 为下一次蹬地做准备"),
-    (19.5, "⑤ 每蹬一次身体就转一下（偏航 ±100°）：靠差动步幅自动阻尼"),
-    (24.0, "⑥ 30 秒走 0.93 米：3.11 cm/s，横向只偏 6%"),
+    (19.5, "⑤ 每蹬一次航向会偏一点（实测 ±10°）：靠左右差动步幅把它压回去"),
+    (24.0, "⑥ 30 秒走 0.82 米：2.74 cm/s，横向只偏 2%"),
     (28.0, "完整过程：踩住 → 反推 → 抬起 → 前移 → 再踩住，循环往复"),
 ]
 

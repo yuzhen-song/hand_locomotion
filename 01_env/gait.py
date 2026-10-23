@@ -58,6 +58,21 @@ def yaw_of(quat):
     return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
 
 
+def heading_of(quat):
+    """Heading (rad) about the world Z axis, for the palm's rest frame.
+
+    The mount carries a -90 deg rotation about Y in the URDF, so its local X
+    axis is the world up.  ZYX Euler angles are then gimbal-locked (pitch
+    sits at -87 deg) and `yaw_of` returns garbage.  The palm's heading is the
+    angle of its local Y axis in the world XY plane instead.
+    """
+    import math
+    w, x, y, z = quat
+    R01 = 2.0 * (x * y - w * z)
+    R11 = 1.0 - 2.0 * (x * x + z * z)
+    return math.atan2(-R01, R11)
+
+
 def _smooth(x):
     """C1 smoothstep, keeps the reference continuous at the phase seams."""
     x = min(max(x, 0.0), 1.0)

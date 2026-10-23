@@ -80,7 +80,7 @@ while nxt < len(WANT):
                                     + [np.array(d.body(TIPB[lg]).xpos) * 100]) for lg in LEGS}
         R = np.array(d.body("platform_mount").xmat).reshape(3, 3)
         out["body"] = np.array(d.body("platform_mount").xpos) * 100
-        out["yaw"] = math.atan2(R[1, 0], R[0, 0])
+        out["yaw"] = math.atan2(-R[0, 1], R[1, 1])
         shots.append(out)
         nxt += 1
 

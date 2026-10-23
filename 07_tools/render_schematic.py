@@ -203,7 +203,7 @@ def main():
                     help="closed loop on lateral position: bias_eff = bias + lat_gain*x")
     ap.add_argument("--lat_tau", type=float, default=0.0,
                     help="low-pass time constant (s) on the lateral error; slow outer loop")
-    ap.add_argument("--bias", type=float, default=0.0,
+    ap.add_argument("--bias", type=float, default=-0.10,
                     help="differential stride bias: +X legs x(1-bias), -X legs x(1+bias); use to cancel sideways drift")
     ap.add_argument("--friction", type=float, default=None,
                     help="override the fingertip sliding friction (model default 2.0)")

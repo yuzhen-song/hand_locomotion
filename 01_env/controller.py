@@ -19,12 +19,12 @@ get back the joint targets to hand to a PD loop.
 import math
 import numpy as np
 
-from gait import PHASE_SETS, SIDE, CrawlGait, yaw_of
+from gait import PHASE_SETS, SIDE, CrawlGait, heading_of
 
 
 class TrotController:
     def __init__(self, order, q0, period=1.6, duty=0.5, stride=0.6, knee=0.4,
-                 phases="trot", bias=-0.16, yaw_gain=0.3, lat_gain=-2.0, lat_tau=4.0):
+                 phases="trot", bias=-0.10, yaw_gain=-0.20, lat_gain=-2.0, lat_tau=4.0):
         self.gait = CrawlGait(order, q0, period=period, duty=duty, stride=stride,
                               knee=knee, phases=PHASE_SETS[phases])
         self.bias = float(bias)
@@ -46,7 +46,7 @@ class TrotController:
             alpha = math.exp(-dt / self.lat_tau)
             self._lat_f = alpha * self._lat_f + (1.0 - alpha) * xerr
             xerr = self._lat_f
-        yaw = yaw_of(qpos[3:7])
+        yaw = heading_of(qpos[3:7])
         yaw = float(np.arctan2(np.sin(yaw), np.cos(yaw)))
         corr = float(np.clip(self.yaw_gain * yaw, -0.4, 0.4))
         beff = float(np.clip(self.bias + self.lat_gain * xerr, -0.7, 0.7))
