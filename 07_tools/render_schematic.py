@@ -26,7 +26,7 @@ import imageio_ffmpeg  # noqa: E402
 import mujoco  # noqa: E402
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
-from gait import CrawlGait  # noqa: E402
+from gait import PHASE_SETS, CrawlGait  # noqa: E402
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 FONT_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
@@ -183,7 +183,7 @@ GAIT = None
 def main():
     global GAIT
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gait", default="crawl", choices=["crawl", "hold"])
+    ap.add_argument("--gait", default="crawl", choices=["crawl", "trot", "pace", "bound", "hold"])
     ap.add_argument("--steps", type=int, default=2400)
     ap.add_argument("--every", type=int, default=16)
     ap.add_argument("--fps", type=int, default=30)
@@ -194,6 +194,7 @@ def main():
     ap.add_argument("--duty", type=float, default=0.85, help="stance fraction per leg")
     ap.add_argument("--stride", type=float, default=0.35, help="hip sweep amplitude in rad")
     ap.add_argument("--knee", type=float, default=0.0, help="swing knee flex in rad")
+    ap.add_argument("--zoom", type=float, default=1.0, help="camera distance multiplier")
     ap.add_argument("--friction", type=float, default=None,
                     help="override the fingertip sliding friction (model default 2.0)")
     a = ap.parse_args()
@@ -208,7 +209,17 @@ def main():
     abd = {"C": 0.63, "A": -0.63, "B": 0.63, "D": -0.63}
     q0 = np.array([{"MCP-FLX": -1.10, "MCP-ABD": abd[n.split("-")[0].replace("unit", "")],
                     "PIP": 1.60, "DIP": -0.35}[n.split("-", 1)[1]] for n in order])
-    GAIT = CrawlGait(order, q0, period=a.period, duty=a.duty, stride=a.stride, knee=a.knee)
+    DEFAULTS = {"trot": dict(period=1.6, duty=0.5, stride=0.6, knee=0.2),
+                "pace": dict(period=2.6, duty=0.5, stride=0.6, knee=0.2),
+                "bound": dict(period=2.6, duty=0.5, stride=0.6, knee=0.2)}
+    if a.gait in DEFAULTS:
+        kw = dict(DEFAULTS[a.gait])
+        kw["phases"] = PHASE_SETS[a.gait]
+        print(f"{a.gait} preset: {kw}", flush=True)
+    else:
+        kw = dict(period=a.period, duty=a.duty, stride=a.stride, knee=a.knee,
+                  phases=PHASE_SETS["crawl"])
+    GAIT = CrawlGait(order, q0, **kw)
 
     def pd(target):
         u = np.zeros(m.nu)
@@ -272,9 +283,10 @@ def main():
     def grab_views():
         """Fixed world cameras: the body visibly crosses the frame."""
         y0w = y0
-        specs = ((0, -12, 0.60, "FIXED SIDE (world frame)"),
-                 (135, -22, 0.62, "FIXED 3/4"),
-                 (0, -80, 0.50, "FIXED TOP"),
+        z = a.zoom
+        specs = ((0, -12, 0.60 * z, "FIXED SIDE (world frame)"),
+                 (135, -22, 0.62 * z, "FIXED 3/4"),
+                 (0, -80, 0.50 * z, "FIXED TOP"),
                  (40, -14, 0.30, "FEET CLOSE-UP (follow)"))
         tile = Image.new("RGB", (528, 400), BG)
         dr = ImageDraw.Draw(tile)
@@ -285,7 +297,7 @@ def main():
             if i == 3:
                 cam.lookat[:] = [float(cur[0]), float(cur[1]), float(cur[2]) - 0.09]
             else:
-                cam.lookat[:] = [0.0, y0w + 0.20, 0.05]
+                cam.lookat[:] = [0.10 * (z - 1.0) * 4.0, y0w + 0.20 + 0.25 * (z - 1.0), 0.05]
             cam.distance = dist
             cam.elevation = el
             cam.azimuth = az
@@ -324,7 +336,7 @@ def main():
     try:
         for step in range(a.steps):
             t += m.opt.timestep
-            pd(GAIT.reference(t) if a.gait == "crawl" else q0)
+            pd(GAIT.reference(t) if a.gait != "hold" else q0)
             mujoco.mj_step(m, d)
             R = np.array(d.body("platform_mount").xmat).reshape(3, 3)
             if R[2, 0] < 0.7 or d.qpos[2] < 0.05:

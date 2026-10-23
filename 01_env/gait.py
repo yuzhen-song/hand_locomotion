@@ -30,6 +30,15 @@ FORWARD_SIGN = {"C": +1.0, "D": +1.0, "A": -1.0, "B": -1.0}
 # Which legs sit on the +X side. Used by the heading controller.
 SIDE = {"A": +1.0, "C": +1.0, "B": -1.0, "D": -1.0}
 
+# Phase offset per leg. "crawl" keeps exactly one leg swinging (3&1), "trot"
+# swings the diagonal pairs A+D / B+C together (2&2).
+PHASE_SETS = {
+    "crawl": {"A": 0.00, "D": 0.25, "B": 0.50, "C": 0.75},
+    "trot": {"A": 0.00, "D": 0.00, "B": 0.50, "C": 0.50},
+    "pace": {"A": 0.00, "C": 0.00, "B": 0.50, "D": 0.50},
+    "bound": {"A": 0.00, "B": 0.00, "C": 0.50, "D": 0.50},
+}
+
 
 def yaw_scale(yaw, k=2.0, lo=0.3, hi=1.7):
     """Per-leg stride scale that steers the heading.
@@ -58,7 +67,8 @@ def _smooth(x):
 class CrawlGait:
     """Produces a joint-space reference that is aligned with env.order."""
 
-    def __init__(self, order, q0, period=2.6, duty=0.85, stride=0.35, knee=0.0, sweep=1.0):
+    def __init__(self, order, q0, period=2.6, duty=0.85, stride=0.35, knee=0.0,
+                 sweep=1.0, phases=None):
         self.order = list(order)
         self.q0 = np.asarray(q0, dtype=float).copy()
         self.period = float(period)
@@ -68,6 +78,7 @@ class CrawlGait:
         # sweep = +1: stance sweeps front->back (body pushed forward)
         # sweep = -1: reversed sweep, for hands whose sign convention differs
         self.sweep = float(sweep)
+        self.phases = dict(phases or PHASE_SETS["crawl"])
         self.index = {}
         for k, name in enumerate(self.order):
             leg = name.split("-")[0].replace("unit", "")
@@ -76,8 +87,7 @@ class CrawlGait:
 
     def leg_phase(self, leg, t):
         """Phase of one leg in [0, 1); 0 starts the stance of that leg."""
-        off = SWING_ORDER.index(leg) / float(len(SWING_ORDER))
-        return ((t / self.period) + off) % 1.0
+        return ((t / self.period) + self.phases[leg]) % 1.0
 
     def reference(self, t, scale=None):
         """Full 16-value joint reference at time t.
