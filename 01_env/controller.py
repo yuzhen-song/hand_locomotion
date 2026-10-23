@@ -38,6 +38,7 @@ class TrotController:
         self.x0 = float(x0)
         self.y0 = float(y0)
         self._lat_f = 0.0   # low-passed lateral error
+        self.last_scales = {leg: 1.0 for leg in self.legs}
 
     def _scales(self, qpos, dt):
         xerr = float(qpos[0]) - self.x0
@@ -49,9 +50,10 @@ class TrotController:
         yaw = float(np.arctan2(np.sin(yaw), np.cos(yaw)))
         corr = float(np.clip(self.yaw_gain * yaw, -0.4, 0.4))
         beff = float(np.clip(self.bias + self.lat_gain * xerr, -0.7, 0.7))
-        return {leg: float(np.clip((1.0 - beff * SIDE[leg]) * (1.0 + corr * SIDE[leg]),
-                                   0.35, 1.75))
-                for leg in self.legs}
+        self.last_scales = {leg: float(np.clip((1.0 - beff * SIDE[leg]) * (1.0 + corr * SIDE[leg]),
+                                               0.35, 1.75))
+                            for leg in self.legs}
+        return self.last_scales
 
     def targets(self, t, qpos, dt):
         return self.gait.reference(t, self._scales(qpos, dt))
