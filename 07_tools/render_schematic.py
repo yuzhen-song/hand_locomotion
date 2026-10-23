@@ -191,13 +191,15 @@ def main():
     ap.add_argument("--out", default=None)
     ap.add_argument("--gl", action="store_true", help="MuJoCo 3D rendering instead of the schematic")
     ap.add_argument("--views", action="store_true", help="2x2 multi-camera grid (needs --gl)")
-    ap.add_argument("--period", type=float, default=2.6, help="gait cycle in seconds")
-    ap.add_argument("--duty", type=float, default=0.85, help="stance fraction per leg")
-    ap.add_argument("--stride", type=float, default=0.35, help="hip sweep amplitude in rad")
-    ap.add_argument("--knee", type=float, default=0.0, help="swing knee flex in rad")
+    ap.add_argument("--period", type=float, default=None, help="gait cycle in seconds")
+    ap.add_argument("--duty", type=float, default=None, help="stance fraction per leg")
+    ap.add_argument("--stride", type=float, default=None, help="hip sweep amplitude in rad")
+    ap.add_argument("--knee", type=float, default=None, help="swing knee flex in rad")
     ap.add_argument("--zoom", type=float, default=1.0, help="camera distance multiplier")
     ap.add_argument("--yaw_gain", type=float, default=0.0,
                     help="P gain on yaw; differential stride correction that damps the body spin")
+    ap.add_argument("--lat_gain", type=float, default=0.0,
+                    help="closed loop on lateral position: bias_eff = bias + lat_gain*x")
     ap.add_argument("--bias", type=float, default=0.0,
                     help="differential stride bias: +X legs x(1-bias), -X legs x(1+bias); use to cancel sideways drift")
     ap.add_argument("--friction", type=float, default=None,
@@ -217,13 +219,12 @@ def main():
     DEFAULTS = {"trot": dict(period=1.6, duty=0.5, stride=0.6, knee=0.2),
                 "pace": dict(period=2.6, duty=0.5, stride=0.6, knee=0.2),
                 "bound": dict(period=2.6, duty=0.5, stride=0.6, knee=0.2)}
-    if a.gait in DEFAULTS:
-        kw = dict(DEFAULTS[a.gait])
-        kw["phases"] = PHASE_SETS[a.gait]
-        print(f"{a.gait} preset: {kw}", flush=True)
-    else:
-        kw = dict(period=a.period, duty=a.duty, stride=a.stride, knee=a.knee,
-                  phases=PHASE_SETS["crawl"])
+    kw = dict(DEFAULTS.get(a.gait, dict(period=2.6, duty=0.85, stride=0.35, knee=0.0)))
+    kw["phases"] = PHASE_SETS.get(a.gait, PHASE_SETS["crawl"])
+    for key in ("period", "duty", "stride", "knee"):
+        if getattr(a, key) is not None:
+            kw[key] = getattr(a, key)
+    print(f"gait {a.gait}: {kw}", flush=True)
     GAIT = CrawlGait(order, q0, **kw)
 
     def pd(target):
@@ -302,7 +303,7 @@ def main():
             if i == 3:
                 cam.lookat[:] = [float(cur[0]), float(cur[1]), float(cur[2]) - 0.09]
             else:
-                cam.lookat[:] = [0.10 * (z - 1.0) * 4.0, y0w + 0.20 + 0.25 * (z - 1.0), 0.05]
+                cam.lookat[:] = [0.0, y0w + 0.20 + 0.30 * (z - 1.0), 0.05]
             cam.distance = dist
             cam.elevation = el
             cam.azimuth = az
@@ -322,6 +323,7 @@ def main():
 
     out = a.out or os.path.join(paths.VIDEO_DIR, f"gait_{a.gait}{'_gl' if a.gl else '_schematic'}.mp4")
     y0 = float(d.qpos[1])
+    x0 = float(d.qpos[0])
     t, fell = 0.0, None
     tmp = tempfile.mkdtemp(prefix="gaitframes_")
     nframe = [0]
@@ -343,11 +345,12 @@ def main():
             t += m.opt.timestep
             if a.gait == "hold":
                 pd(q0)
-            elif a.bias or a.yaw_gain:
+            elif a.bias or a.yaw_gain or a.lat_gain:
                 yaw = yaw_of(d.qpos[3:7])
                 yaw = math.atan2(math.sin(yaw), math.cos(yaw))
                 corr = float(np.clip(a.yaw_gain * yaw, -0.4, 0.4))
-                sc = {leg: float(np.clip((1.0 - a.bias * SIDE[leg]) * (1.0 + corr * SIDE[leg]), 0.4, 1.7))
+                beff = float(np.clip(a.bias + a.lat_gain * (float(d.qpos[0]) - x0), -0.7, 0.7))
+                sc = {leg: float(np.clip((1.0 - beff * SIDE[leg]) * (1.0 + corr * SIDE[leg]), 0.35, 1.75))
                       for leg in "ABCD"}
                 pd(GAIT.reference(t, sc))
             else:

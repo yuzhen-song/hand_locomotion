@@ -517,3 +517,30 @@ be had at the same time; the best stable point stays at knee 0.2
 That coupling - three gains and strong nonlinear interactions - is exactly the
 kind of tuning a learned controller should beat a human at, which is the
 remaining argument for RL here.
+
+### knee x bias x yaw grid + closed loop: 3.04 cm/s, 6x the first gait
+
+36-point grid (25 s each), scored as speed x straightness:
+
+| knee | bias | yaw | forward | sideways | max lateral | score |
+|---|---|---|---|---|---|---|
+| **0.4** | **-0.16** | **0.3** | **+3.11 cm/s** | +0.28 | 8.6 cm | **2.83** |
+| 0.4 | -0.21 | 0.3 | +2.99 | +0.23 | 7.0 | 2.76 |
+| 0.3 | -0.16 | 0.3 | +2.91 | +0.27 | 10.3 | 2.64 |
+| 0.3 | -0.21 | 0.7 | +2.50 | -0.06 | **4.2** | 2.44 |
+
+Closed loop on the lateral position (bias_eff = bias + lat_gain*x) adds a little
+on top of the open-loop bias: at knee 0.4 / bias -0.16 / yaw 0.3, lat_gain -2.0
+gives 3.18 cm/s at 7% sideways (vs 3.11 at 9%); lat_gain -3 falls.
+
+Final setting, 40 s: **+1.214 m forward, 3.04 cm/s, 15 cm lateral** (13%).
+Recording: `05_videos/trot_fastest_40s.{mp4,gif}`
+
+Progress of the forward speed across the session:
+
+| gait | forward speed |
+|---|---|
+| crawl, first working version | 0.49 cm/s |
+| crawl, tuned | 0.57 |
+| 2&2 trot + bias + yaw | 1.82 |
+| **trot + grid + closed loop** | **3.04 cm/s (6.2x)** |
