@@ -102,9 +102,9 @@ def arc(ax, center, r, a0, a1, color, label, lr=0.15):
             center[1] + (r + lr) * math.sin(math.radians(m)),
             label, fontsize=9, color=color, ha="center", va="center")
 
-arc(ax, O, 1.6, -60, 0, "tab:blue", "θ1")
-arc(ax, P, 1.2, a1 - 50, a1, "tab:orange", "θ2")
-arc(ax, D, 0.9, a2 - 30, a2, "tab:green", "θ3")
+arc(ax, O, 1.6, -60, 0, "tab:blue", "$\\theta_1$")
+arc(ax, P, 1.2, a1 - 50, a1, "tab:orange", "$\\theta_2$")
+arc(ax, D, 0.9, a2 - 30, a2, "tab:green", "$\\theta_3$")
 
 # local coordinate frames (z into page = ⊗, x along link)
 def frame(ax, pt, ang_deg, col, name, length=1.6):
@@ -114,7 +114,10 @@ def frame(ax, pt, ang_deg, col, name, length=1.6):
                                  color=col, lw=1.5))
     ax.text(pt[0] + x[0] + 0.15, pt[1] + x[1] + 0.15, "x%d" % name, fontsize=8,
             color=col)
-    ax.text(pt[0] - 0.35, pt[1] + 0.15, "⊗ z%d" % name, fontsize=7.5, color="0.45")
+    ax.plot([pt[0] - 0.30], [pt[1] + 0.42], "o", ms=7, mfc="white", mec="0.45",
+            mew=1.1, zorder=6)
+    ax.plot([pt[0] - 0.30], [pt[1] + 0.42], ".", ms=2.2, color="0.45", zorder=7)
+    ax.text(pt[0] - 0.12, pt[1] + 0.40, "z%d" % name, fontsize=7.5, color="0.45")
 
 frame(ax, O, a1, "tab:blue", 1, length=1.9)
 frame(ax, P, a2, "tab:orange", 2, length=1.6)
@@ -155,28 +158,28 @@ ax_eq.axis("off")
 lines = [
     "DH 参数（简化平面链，屈曲平面内）",
     "",
-    "i   a_i(cm)   α_i    d_i    θ_i",
-    "1   %.2f      0      0      θ1 = MCP-FLX" % l1,
-    "2   %.2f      0      0      θ2 = PIP" % l2,
-    "3   %.2f      0      0      θ3 = DIP" % l3,
-    "0   4.25      90°    0      θ0 = MCP-ABD (yaw)",
+    "i   a_i(cm)   alpha_i   d_i    theta_i",
+    "1   %.2f      0         0      theta1 = MCP-FLX" % l1,
+    "2   %.2f      0         0      theta2 = PIP" % l2,
+    "3   %.2f      0         0      theta3 = DIP" % l3,
+    "0   4.25      90        0      theta0 = MCP-ABD (yaw)",
     "",
-    "前向运动学（屈曲平面内，y 横向、z 竖直）：",
-    "  y_tip = l1 cos θ1 + l2 cos(θ1+θ2) + l3 cos(θ1+θ2+θ3)",
-    "  z_tip = l1 sin θ1 + l2 sin(θ1+θ2) + l3 sin(θ1+θ2+θ3)",
+    "前向运动学（屈曲平面内，y 横向、z 竖直）",
+    "  y_tip = l1 cos t1 + l2 cos(t1+t2) + l3 cos(t1+t2+t3)",
+    "  z_tip = l1 sin t1 + l2 sin(t1+t2) + l3 sin(t1+t2+t3)",
     "",
-    "雅可比（尖端速度 → 关节速度）：",
-    "  [ẏ]   [-l1 s1 -l2 s12 -l3 s123  -l2 s12 -l3 s123  -l3 s123] [θ̇1]",
-    "  [ż] = [ l1 c1 +l2 c12 +l3 c123   l2 c12 +l3 c123   l3 c123] [θ̇2]",
-    "                                                          [θ̇3]",
+    "雅可比：尖端速度 -> 关节速度",
+    "  [dy/dt]   [-l1 s1 -l2 s12 -l3 s123  -l2 s12 -l3 s123  -l3 s123] [dq1/dt]",
+    "  [dz/dt] = [ l1 c1 +l2 c12 +l3 c123   l2 c12 +l3 c123   l3 c123] [dq2/dt]",
+    "                                                                 [dq3/dt]",
     "",
-    "锚定条件（尖端不动）：ẏ=0, ż=0  ⇒  v_body 由 θ̇ 唯一决定",
-    "  v_body = -J(q) θ̇   （这就是 locomotion 的推进公式）",
+    "锚定条件（尖端不动）: dy/dt = 0, dz/dt = 0",
+    "  =>  v_body = -J(q) dq/dt    这就是 locomotion 的推进公式",
     "",
-    "零位（home）：θ1=-1.10, θ2=1.60, θ3=-0.35, θ0=±0.63",
-    "行程：θ1∈[-1.57,0.23]  θ2∈[-0.49,1.89]  θ3∈[-2.31,0]",
+    "零位（home）: t1=-1.10  t2=1.60  t3=-0.35  t0=+/-0.63",
+    "行程: t1 in [-1.57, 0.23]   t2 in [-0.49, 1.89]   t3 in [-0.35, 1.96]",
 ]
-ax_eq.text(0.0, 1.02, "\n".join(lines), fontsize=8.2, va="top", family="monospace",
+ax_eq.text(0.0, 1.02, "\n".join(lines), fontsize=8.2, va="top",
            transform=ax_eq.transAxes)
 
 fig.suptitle("四指手 · 单指 DH 简化图（侧视 + 俯视）", fontsize=12, y=0.97)
