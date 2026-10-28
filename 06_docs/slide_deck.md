@@ -425,7 +425,7 @@ t = 0.52 s   X = +10.1 cm   up = 0.70   ← terminated, roll 45.9°
 
 ### 3.4 什么最后管用了 / What Finally Worked
 
-![三级串级控制：前馈 bias + 偏航 P（快）+ 横向 P（慢，低通）](figs/fig8_control.png)
+![三级串级控制：前馈 bias + 偏航 P（快）+ 横向 P（慢，低通）](figs/fig_ctrl_clean.png)
 
 ![参数扫描：提升速度直到摔倒（缺口=摔）](figs/fig6_knee.png)
 
