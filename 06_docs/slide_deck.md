@@ -145,7 +145,9 @@ $$
 
 $$J_c(q)\,\dot q = 0 \;\Longrightarrow\; \boxed{\,v_{\text{body}} = -J_c^{-1}J_j\,\dot q_j\,}$$
 
-![支撑相把身体推出去，摆动相不贡献位移](figs/fig_p2_anchor.png)
+![支撑项：脚钉住，身体被推着走](figs/fig_p2b_stance_side.png)
+
+![摆动项：脚抬起前移，身体不动](figs/fig_p2c_swing_side.png)
 
 - **The entire locomotion problem is this one line**: move the joints, the body gets pushed backwards. Contact is the "closure constraint" here — it plays the role the closed-loop linkage plays on a wheel-legged robot.
 
@@ -398,3 +400,95 @@ t = 0.52 s   X = +10.1 cm   up = 0.70   ← terminated, roll 45.9°
 | 峰值力矩 | 10.0 N·m（打满），RMS 1.19 N·m | 力矩记录 |
 | 连杆 | FLX→PIP 59.9 / PIP→DIP 36.1 / DIP→tip 22.9 mm | 关节轴距 |
 | 摆动轨迹端点速度 | 正弦 6.28 vs 五次多项式 0 | 轨迹分析 |
+
+<!--slide-->
+
+## 附 D — 示意图的生成 Prompt（可直接粘贴到大模型）
+
+> 现成的两张图已经画好了（`figs/fig_p2b_stance_side.png` / `figs/fig_p2c_swing_side.png`）。
+> 下面这套 prompt 是给"想让 AI 重画成更漂亮的插画风"时用的。
+> **重要**：图像模型写不好技术文字，所以 prompt 里一律要求**不要文字**，标签自己后期加。
+
+### D.1 支撑项 / Stance — English prompt
+
+```
+A clean technical side-elevation diagram of a four-fingered robotic hand
+standing on its fingertips, drawn as a flat vector illustration on white.
+
+Composition: the palm is a rounded rectangle at the top. Three segmented
+fingers hang down from it to the ground; each finger has three joints and ends
+in a small five-sphere contact pad pressed flat on the floor. The floor is a
+single horizontal line with light grey hatching underneath.
+
+Highlight one finger in solid blue (#1D4ED8) to show it is bearing load; draw
+the other fingers in pale blue at 25% opacity. Put a small red "x" exactly
+where the blue fingertip touches the floor to indicate the contact point is
+locked in place. Draw a thick dark-blue arrow above the palm pointing to the
+right, parallel to the floor, showing the body translating forward. Draw a
+small curved violet arrow around one knee joint showing the joint rotating.
+
+Style: flat technical illustration, 2D orthographic side view, thin clean
+outlines, no shading gradients, no perspective, no background scenery,
+generous white space. Colour palette limited to navy blue, light periwinkle,
+red accent and grey. Aspect ratio 16:10.
+
+Do NOT include any text, letters, numbers, labels, watermarks or logos.
+```
+
+### D.2 摆动项 / Swing — English prompt
+
+```
+A clean technical side-elevation diagram of a four-fingered robotic hand
+standing on its fingertips, drawn as a flat vector illustration on white.
+
+Composition: the palm is a rounded rectangle at the top. Two fingers rest on
+the floor in pale blue at 25% opacity. One finger on the left is drawn twice:
+a ghosted orange outline where it previously stood on the floor, and a solid
+orange (#EA580C) pose where it is lifted about one fifth of its length above
+the floor and swung forward. Draw a dotted orange arc with an arrowhead from
+the ghosted position to the lifted position. Add a thin double-headed arrow
+between the lifted fingertip and the floor.
+
+Style: flat technical illustration, 2D orthographic side view, thin clean
+outlines, no shading gradients, no perspective, no background scenery,
+generous white space. Colour palette limited to navy blue, light periwinkle,
+orange accent and grey. Aspect ratio 16:10.
+
+Do NOT include any text, letters, numbers, labels, watermarks or logos.
+```
+
+### D.3 Negative prompt（有 negative 栏就填）
+
+```
+text, letters, numbers, captions, labels, watermark, logo, 3D render, photo,
+photorealistic, perspective camera, bluish glow, busy background, drop shadow,
+glossy plastic, extra fingers, melted geometry, deformed joints
+```
+
+### D.4 中文版（给豆包 / 文心 / 即梦 这类中文模型）
+
+```
+一张干净的技术侧视图，白色背景，扁平矢量风格。
+
+画面：一只四指机械手用指尖站在地面上。手掌是顶部的圆角矩形，三根分节手指
+自然下垂接触地面，每根手指有三个关节，末端是一个压扁在地面的小接触垫。
+地面是一条水平线，下方浅灰色斜线阴影。
+
+把其中一根手指画成实心蓝色（#1D4ED8）表示它正在承重，其余手指用淡蓝色
+25% 透明度。在蓝色指尖与地面接触的位置画一个红色小叉，表示这一点被锁死。
+手掌上方画一根粗的深蓝色箭头，水平指向右方，表示身体在前进。在其中一个
+膝关节处画一小段紫色弧形箭头表示关节在转动。
+
+风格：扁平技术插图、正交侧视、线条干净、无渐变、无透视、无背景场景、
+留白充足。配色只用深蓝、淡蓝紫、红色和灰色。比例 16:10。
+
+画面中不要出现任何文字、字母、数字、标签、水印或 logo。
+```
+
+### D.5 用 AI 图时的三个坑
+
+| 坑 | 对策 |
+|---|---|
+| 手指数量画错（多画一节/少画一节） | prompt 里明确 "three segmented fingers, three joints each"，并接受要多抽几次 |
+| 文字变乱码 | 一律要求 no text，标签用 PPT 文本框加 |
+| 比例失真 | 现成 PNG 是按真实连杆比例（59.9 / 36.1 / 22.9 mm）画的，**建议优先用现成的**，AI 图只当封面/装饰 |
