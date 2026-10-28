@@ -145,6 +145,8 @@ $$
 
 $$J_c(q)\,\dot q = 0 \;\Longrightarrow\; \boxed{\,v_{\text{body}} = -J_c^{-1}J_j\,\dot q_j\,}$$
 
+![支撑相把身体推出去，摆动相不贡献位移](figs/fig_p2_anchor.png)
+
 - **The entire locomotion problem is this one line**: move the joints, the body gets pushed backwards. Contact is the "closure constraint" here — it plays the role the closed-loop linkage plays on a wheel-legged robot.
 
 **中文**
@@ -229,6 +231,8 @@ t = 0.52 s   X = +10.1 cm   up = 0.70   ← terminated, roll 45.9°
 
 - Drifts **18 cm/s sideways** vs **4.6 cm/s forward** — sideways is 4× forward.
 - Reward **never exceeded** the do-nothing baseline (**+0.154 vs +0.197**); identical on every seed.
+
+![RL 摔倒时间线：0.34 s 越界，0.52 s 判摔，中间 0.18 s 是死区](figs/fig_p3_fall.png)
 
 **中文**
 - 残差策略 60 万步 PPO，确定性 rollout：**0.52 s 沿 +X 侧翻**，roll 45.9°。
