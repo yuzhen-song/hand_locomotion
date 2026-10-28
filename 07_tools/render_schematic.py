@@ -38,6 +38,19 @@ GROUND = (95, 95, 110)
 GRID = (36, 36, 44)
 TEXT = (225, 225, 235)
 DIM = (110, 110, 125)
+FONT_CN = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
+
+# multi-view tile layout (px)
+PV_W, PV_H = 464, 298          # one camera panel
+GUT = 8                        # gutter between panels
+PAD = 12                       # outer margin
+HEADER = 52
+FOOTER = 46
+TILE_W = 2 * PV_W + GUT + 2 * PAD
+TILE_H = HEADER + 2 * PV_H + GUT + FOOTER + PAD
+INK = (16, 16, 21)             # bar background
+ACC = (86, 156, 214)           # accent blue
+MUTED = (138, 146, 164)
 
 
 def dim(color, k=0.42):
@@ -262,7 +275,7 @@ def main():
                 m.geom_friction[g, 0] = a.friction
                 m.geom_friction[g, 1] = a.friction
         print(f"friction -> {a.friction}", flush=True)
-    gl = mujoco.Renderer(m, height=200, width=264) if a.gl else None
+    gl = mujoco.Renderer(m, height=PV_H, width=PV_W) if a.gl else None
     if gl is not None:
         # software rendering: shadows dominate the cost, they are not worth it here
         gl.scene.flags[mujoco.mjtRndFlag.mjRND_SHADOW] = False
@@ -300,15 +313,32 @@ def main():
         """Fixed world cameras: the body visibly crosses the frame."""
         y0w = y0
         z = a.zoom
-        specs = ((0, -12, 0.60 * z, "FIXED SIDE (world frame)"),
-                 (135, -22, 0.62 * z, "FIXED 3/4"),
-                 (0, -80, 0.50 * z, "FIXED TOP"),
-                 (40, -14, 0.30, "FEET CLOSE-UP (follow)"))
-        tile = Image.new("RGB", (528, 400), BG)
+        specs = ((0, -12, 0.60 * z, "SIDE", "fixed world frame"),
+                 (135, -22, 0.62 * z, "3/4", "oblique"),
+                 (0, -80, 0.50 * z, "TOP", "plan view"),
+                 (40, -14, 0.30, "CLOSE-UP", "tracking the feet"))
+        tile = Image.new("RGBA", (TILE_W, TILE_H), BG + (255,))
         dr = ImageDraw.Draw(tile)
-        fnt = ImageFont.truetype(FONT, 12)
+        f_lab = ImageFont.truetype(FONT_B, 15)
+        f_sub = ImageFont.truetype(FONT_R, 9)
+        f_hdr = ImageFont.truetype(FONT_B, 20)
+        f_hdrs = ImageFont.truetype(FONT_R, 12)
+        f_cn = ImageFont.truetype(FONT_CN, 12)
+        f_ft = ImageFont.truetype(FONT_R, 13)
+        f_ftb = ImageFont.truetype(FONT_B, 14)
         cur = np.array(d.body("platform_mount").xpos)
-        for i, (az, el, dist, label) in enumerate(specs):
+
+        # ---- header
+        dr.rectangle([0, 0, TILE_W, HEADER], fill=INK)
+        dr.text((PAD + 2, 8), "TROT", font=f_hdr, fill=(255, 255, 255))
+        tw = dr.textbbox((0, 0), "TROT", font=f_hdr)[2]
+        dr.text((PAD + 2 + tw + 8, 14), "2&2 diagonal gait", font=f_hdrs, fill=MUTED)
+        cn = "四指手 · 对角两点步态 · 40 s"
+        cw = dr.textbbox((0, 0), cn, font=f_cn)[2]
+        dr.text((TILE_W - PAD - cw, 17), cn, font=f_cn, fill=(196, 202, 214))
+        dr.rectangle([0, HEADER - 2, TILE_W, HEADER], fill=(38, 40, 50))
+
+        for i, (az, el, dist, name, sub) in enumerate(specs):
             cam = mujoco.MjvCamera()
             if i == 3:
                 cam.lookat[:] = [float(cur[0]), float(cur[1]), float(cur[2]) - 0.09]
@@ -319,17 +349,40 @@ def main():
             cam.azimuth = az
             gl.update_scene(d, camera=cam)
             add_ruler(gl.scene, y0w)
-            im = Image.fromarray(gl.render())
-            x, y = (i % 2) * 264, (i // 2) * 200
+            im = Image.fromarray(gl.render()).convert("RGB")
+            x = PAD + (i % 2) * (PV_W + GUT)
+            y = HEADER + (i // 2) * (PV_H + GUT)
             tile.paste(im, (x, y))
-            dr.rectangle([x, y, x + 262, y + 198], outline=(70, 70, 85))
-            dr.rectangle([x, y, x + len(label) * 7 + 10, y + 19], fill=(0, 0, 0))
-            dr.text((x + 5, y + 4), label, font=fnt, fill=TEXT)
+            dr.rectangle([x, y, x + PV_W - 1, y + PV_H - 1], outline=(58, 62, 76))
+
+            # label chip, measured so the text never leaves the box
+            pad_x, pad_y = 11, 5
+            bw = dr.textbbox((0, 0), name, font=f_lab)[2]
+            sw = dr.textbbox((0, 0), sub, font=f_sub)[2]
+            chip_w = max(bw, sw) + 2 * pad_x + 5
+            chip_h = 34
+            cx, cy = x + 10, y + 10
+            dr.rounded_rectangle([cx, cy, cx + chip_w, cy + chip_h], radius=5,
+                                 fill=(8, 8, 12, 168))
+            dr.rounded_rectangle([cx, cy, cx + 4, cy + chip_h], radius=2, fill=ACC)
+            dr.text((cx + pad_x + 2, cy + pad_y - 1), name, font=f_lab,
+                    fill=(255, 255, 255))
+            dr.text((cx + pad_x + 2, cy + pad_y + 16), sub, font=f_sub, fill=MUTED)
+
+        # ---- footer
+        fy = TILE_H - FOOTER
+        dr.rectangle([0, fy, TILE_W, TILE_H], fill=INK)
+        dr.rectangle([0, fy, TILE_W, fy + 2], fill=(38, 40, 50))
         dy = (float(d.body("platform_mount").xpos[1]) - y0w) * 100
-        dr.rectangle([4, 372, 300, 396], fill=(0, 0, 0))
-        dr.text((8, 375), f"t={t:5.2f}s   forward Y={dy:+6.1f} cm   (green tick = {5} cm)",
-                font=fnt, fill=TEXT)
-        return tile
+        v = dy / max(t, 1e-6)
+        dr.text((PAD + 2, fy + 13), f"t = {t:5.2f} s", font=f_ftb, fill=(255, 255, 255))
+        dr.text((PAD + 118, fy + 14), f"forward Y = {dy:+6.1f} cm", font=f_ft,
+                fill=(200, 206, 220))
+        dr.text((PAD + 292, fy + 14), f"{v:4.2f} cm/s", font=f_ft, fill=MUTED)
+        leg = f"green tick = 5 cm"
+        lw = dr.textbbox((0, 0), leg, font=f_ft)[2]
+        dr.text((TILE_W - PAD - lw - 2, fy + 14), leg, font=f_ft, fill=(120, 210, 140))
+        return tile.convert("RGB")
 
     out = a.out or os.path.join(paths.VIDEO_DIR, f"gait_{a.gait}{'_gl' if a.gl else '_schematic'}.mp4")
     y0 = float(d.qpos[1])
