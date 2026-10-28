@@ -202,6 +202,170 @@ $$J_c(q)\,\dot q = 0 \;\Longrightarrow\; v_{\text{body}} = -J_c^{-1}J_j\,\dot q_
 
 <!--slide-->
 
+## Slide 2·T — 理论骨架 / Theory Backbone
+
+**这一页的作用**：把“为什么能动、为什么能站”压成六条公式，每条后面都挂一个我们自己的实测数。
+评审问任何一条，都能接到具体数字上。
+
+### ① 广义坐标与运动学 / Coordinates & Kinematics
+
+$$
+q=\begin{bmatrix}q_b\\ q_j\end{bmatrix}\in\mathbb{R}^{23},\qquad
+\dot q\in\mathbb{R}^{22},\qquad
+p_c=f(q),\qquad \dot p_c=J_c(q)\,\dot q
+$$
+
+- $q_b\in SE(3)$：浮动基座（位置 + **四元数**，欧拉角会万向节死锁）
+- $q_j\in\mathbb{R}^{16}$：每个指尖 4 个关节
+- $J_c\in\mathbb{R}^{3\times 22}$：接触点速度雅可比（单指 3×4）
+
+**实测**：单指速度椭圆奇异值 $\sigma=(13.9,\;5.6,\;1.8)$ cm/rad，$\kappa=\sigma_1/\sigma_2=2.5$；
+工作空间内 $\kappa$ 从 **2 到 343**（中位 5.4）——**边缘位形有方向完全推不动**。
+
+### ② 接触锚定：整个推进原理 / The Anchoring Constraint
+
+把接触雅可比按机体/关节分块：$J_c=\left[\,J_b\;\middle|\;J_j\,\right]$，着地点不滑 $\dot p_c=0$：
+
+$$
+\underbrace{J_b}_{6\times 6}\,v_b+\underbrace{J_j}_{6\times 16}\,\dot q_j=0
+\;\Longrightarrow\;
+\boxed{\,v_b=-J_b^{-1}J_j\,\dot q_j\,}
+$$
+
+**推导三步**：① $\dot p_c=J_c\dot q$；② 不滑 ⇒ $\dot p_c=0$；③ 分块解出 $v_b$。
+**成立条件**：$J_b$ 满秩 ⇔ 四个接触点**不共面**；退化时（只剩对角两点共线）改用阻尼最小二乘 $J_b^{\dagger}$。
+
+> 这就是轮腿机器人“闭环约束 $p_B=p_C$”的等价物——**我们的闭环是地面接触**。
+
+### ③ 接触力与摩擦锥 / Contact Force Feasibility
+
+$$
+\lambda_s=\begin{bmatrix}f_t\\ f_n\end{bmatrix},\qquad
+f_n\ge 0,\qquad \|f_t\|\le \mu f_n
+$$
+
+- 模型：`condim=4`（法向 + 2 切向 + 扭转），**$\mu=5.0$**
+- $\mu=5.0$ 远大于实际切向/法向比 ⇒ **不滑假设成立**，②中的 $\dot p_c=0$ 不是简化而是事实
+
+### ④ 浮动基拉格朗日动力学 / Floating-base Dynamics
+
+$$
+M(q)\,\ddot q+C(q,\dot q)\,\dot q+G(q)
+=\underbrace{B_u\tau}_{\text{16 个电机}}+\underbrace{\sum_{s}J_{c,s}^{\top}\lambda_s}_{\text{地面反力}}+Q_{ext}
+$$
+
+| 符号 | 含义 | 我们的值 |
+|---|---|---|
+| $q/\dot q$ | 广义坐标/速度 | 23 / 22 |
+| $M$ | 质量矩阵 | 22×22 |
+| $C\dot q+G$ | 偏置力 `qfrc_bias` | 实测 0 ~ 0.05 N·m |
+| $B_u$ | 驱动选择矩阵 | 22×16 |
+| $\tau$ | 关节力矩 | **限幅 ±10 N·m** |
+| $\lambda_s$ | 接触力 | 每点 3 维 |
+
+### ⑤ 伺服环 / Servo Loop
+
+$$
+\tau=K_p\,(q^{*}-q)+K_d\,(\dot q^{*}-\dot q),\qquad |\tau_i|\le 10\ \mathrm{N\cdot m}
+$$
+
+**实测**：峰值 $|\tau|=10.0$ N·m（**打满**），RMS 1.19 N·m，打满的全是 4 个 MCP-FLX。
+静态重力只有 0.05 N·m ⇒ **饱和来自冲击 × 高增益**，不是自重。
+
+### ⑥ 步态代数 / Gait Algebra
+
+$$
+\Delta x_{\text{cycle}}=\sum_{\text{stance}} v_b\,\Delta t+\underbrace{\sum_{\text{swing}}0}_{\text{无推力}}
+=f\,\Delta t_{\text{cycle}}\;\Longleftrightarrow\;
+v=f\,\Delta x_{\text{cycle}}\;[=]\;\mathrm{cm/s}
+$$
+
+**实测**：$f=1/1.6$ Hz，$\Delta x_{\text{cycle}}\approx 5$ cm ⇒ $v\approx 3.1$ cm/s ✔
+
+<!--slide-->
+
+## Slide 2·S — 稳定性理论 / Why It Falls
+
+**这一页的作用**：把“会摔”从一个形容词变成五个可计算的量。
+
+### ① 支撑多边形与静态裕度 / Support Polygon & Margin
+
+$$
+\mathcal{P}=\operatorname{conv}\{p_{c,i}\},\qquad
+m=\operatorname{dist}\!\big(\pi_{xy}(p_{com}),\,\partial\mathcal{P}\big)
+=\begin{cases}m>0 & \text{安全}\\ m<0 & \text{已出界，正在倒}\end{cases}
+$$
+
+**实测**：$\mathcal{P}=13.64\times15.59$ cm，$m_{\min}=5.29$ cm（左 8.35 / 右 5.29，**不对称**）。
+**几何事实**：2&2 步态在对角切换瞬间只剩 2 个接触点，$\mathcal{P}$ **退化成线段**——
+「保持 CoM 在支撑面内」这个判据**在 2&2 里根本没有定义**，必须用动态判据。
+
+### ② 零矩点 / Zero Moment Point
+
+$$
+p_{zmp}=\frac{\sum_i\left(p_i f_{i,z}-z_i f_{i,xy}\right)}{\sum_i f_{i,z}}
+\quad\Longleftrightarrow\quad
+p_{zmp}=p_{com}-\frac{h}{g}\,\ddot p_{com}
+$$
+
+动力学可行 ⇔ $p_{zmp}\in\mathcal{P}$。
+**实测**：$|p_{zmp}-p_{com}|$ 中位 **1.16 cm**（trot）/ 0.72 cm（crawl），远小于 5.29 cm 余量 ⇒ 动态上是可行的。
+
+### ③ 捕获点 / Divergent Component of Motion
+
+$$
+\xi=p_{com}+\frac{\dot p_{com}}{\omega},\qquad
+\omega=\sqrt{\frac{g}{h}},\qquad \frac{1}{\omega}=\text{恢复时间常数}
+$$
+
+**实测**：$h=11.20$ cm ⇒ $\omega=9.4$ rad/s，$\mathbf{1/\omega=0.107}$ **s**。
+DCM 前移量 $v/\omega=3.11/9.4=\mathbf{0.33}$ cm —— 比余量小 16 倍。
+**结论**：它慢到几乎是准静态的，**所以能被开环控制器抓住**，但也正因为慢，横向一漂就来不及。
+
+### ④ 倾覆是不可稳定平衡 / Tipping Dynamics
+
+绕支撑边缘转动，重力矩由「被平衡」变成「加速」：
+
+$$
+I\ddot\theta=mg\,h\sin\theta
+\;\xrightarrow{\;\theta\ll1\;}\;
+\ddot\theta=\omega^2\theta
+\;\Longrightarrow\;
+\boxed{\theta(t)=\theta_0\cosh(\omega t)}
+$$
+
+![倾覆是指数发散，不是线性漂移](figs/fig_f4_cosh.png)
+
+**实测**：$1/\omega=0.107$ s 是唯一的逃生窗口；实测出界后 0.10 s 还几乎没歪，**0.20 s 就失控**——
+与 $\cosh$ 曲线完全吻合。**这就是为什么 0.29 s 的预算救不回来。**
+
+### ⑤ 无量纲数 / Froude Number
+
+$$
+\mathrm{Fr}=\frac{v^2}{g\,h}=\frac{(0.0311)^2}{9.81\times0.112}\approx \mathbf{0.0009}
+\;\;(\ll 1)
+$$
+
+$\mathrm{Fr}\ll1$ ⇒ 惯性项远小于重力项 ⇒ **准静态**。这也是为什么“确定性开环 + 两个标量反馈”
+就能跑，而不需要全身 MPC。
+
+### ⑥ 摔倒判据：不是深度，是时长 / The Real Criterion
+
+单看 $m<0$ 会误报——实测正常行走有 **6%** 的时间 $m<0$，却从不摔。真正的判据是：
+
+$$
+\text{fall}\iff m<0 \;\text{持续} > \tau_{\text{crit}}\approx \frac{1}{\omega}=0.107\ \mathrm{s}
+$$
+
+| 情形 | 出界占比 | 结果 |
+|---|---|---|
+| 正常 trot | 6% | 不摔（出界后 0.1 s 内被下一组接触拉回） |
+| bias = −0.40 | **62%** | 0.8 s 摔 |
+
+> **讲这句话**：「出界本身不是摔倒的原因，出界之后回不回来才是。我们的手只有 0.1 秒的窗口。」
+
+<!--slide-->
+
 ## Slide 3 — 失败案例与改进 / What Failed and What We Fixed
 
 **这一页要干的事**：这是**加分页**。主动摆失败，比藏起来显示更深。但必须**每条失败对应一个可量化根因 + 一个具体修法**，否则变成流水账。
@@ -330,6 +494,39 @@ t = 0.52 s   X = +10.1 cm   up = 0.70   ← terminated, roll 45.9°
 > “我必须诚实说一个问题：四个 MCP-FLX 在支撑相是力矩打满的。静态重力只有 0.05 牛米，所以不是它撑不住，而是抬腿那一瞬间的冲击太大。这直接指向下一步。”
 
 ---
+
+### 4.2b 两条决定性公式 / Two Formulas Behind the Fix
+
+**摆动轨迹：为什么要五次多项式**
+
+五次多项式是**唯一同时满足端点位置、速度、加速度全部为零**的最低阶多项式：
+
+$$
+s(\sigma)=10\sigma^3-15\sigma^4+6\sigma^5,\quad \sigma\in[0,1]
+$$
+
+$$
+s(0)=0,\; s(1)=1,\qquad \dot s(0)=\dot s(1)=0,\qquad \ddot s(0)=\ddot s(1)=0
+$$
+
+| 量 | 正弦（现在） | 五次多项式 |
+|---|---|---|
+| 端点速度 | **6.28（不为 0）** | **0.00** |
+| 峰值加速度 | 39.5 | **5.77（降 7 倍）** |
+
+正弦在触地瞬间还带着 6.28 的速度 ⇒ 冲击 ⇒ 力矩尖峰 ⇒ FLX 打满 10 N·m。
+**五次多项式把这个冲击从源头去掉。**
+
+**电机判据：什么时候算不合格**
+
+$$
+|\tau_i(t)|\le \tau_{\max}=10\ \mathrm{N\cdot m}\;\;\forall t,\;\forall i
+\quad\Longleftrightarrow\quad
+\text{执行器可行}
+$$
+
+实测：$\max|\tau|=10.0$ N·m（**等号，即打满**），$\mathrm{RMS}=1.19$ N·m，超限关节是 4 个 MCP-FLX。
+**等号成立就是不合格** —— 这是 future work 第 4、5 条的直接依据。
 
 ### 4.3 未来工作（每条都接第 3 页的阻塞）/ Future Work
 
